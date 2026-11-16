@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+/*
+  Handi design tokens. Components use these roles only.
+
+  Neutrals are one cool family (a little indigo), from ink text to the page.
+  Colour roles, one meaning each:
+    stellar  primary action, selection, anything on-chain
+    danfo    money that is held in escrow (the signature: the yellow band)
+    lagoon   released, verified, available now
+    clay     dispute, error, destructive confirmation
+
+  Type: Archivo. Width carries hierarchy: wide only for the hero line and
+  money amounts; semiwide for page titles; normal for everything you read.
+  Sizes come from Tailwind's scale only (12 14 16 18 20 24 30 36 48 60).
+  Weights: 400 body, 600 emphasis, 700 display.
+  Radii: lg (8) controls, 2xl (16) panels and sheets, full for chips/avatars.
+  Spacing: 4 8 12 16 20 24 32 40 48 64 80.
+*/
+
+@theme {
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #17143f;
+  --color-ink-2: #3c3967;
+  --color-ink-3: #5f5d85; /* secondary text: 6.2:1 on white, 5.6:1 on plaster */
+  --color-ink-4: #8f8db0; /* non-text only: field borders, inactive marks (3.2:1) */
+  --color-plaster: #f5f5f9;
+  --color-plaster-2: #ebebf3;
+  --color-paper: #ffffff;
+  --color-line: #e2e1ec;
+  --color-line-2: #8f8db0;
+
+  --color-danfo: #f5b400;
+  --color-danfo-soft: #fff2c6;
+  --color-danfo-light: #ffd34d; /* second stripe of the held-money band */
+  --color-danfo-ink: #6f5000;
+
+  --color-lagoon: #0d7a5b;
+  --color-lagoon-soft: #dcf1e8;
+  --color-lagoon-ink: #08533e;
+
+  --color-clay: #b33d27;
+  --color-clay-soft: #f8e2dc;
+  --color-clay-ink: #7d2615;
+
+  --color-stellar: #4a46cf;
+  --color-stellar-soft: #ecebfb;
+  --color-stellar-ink: #2f2b9e;
+
+  /* Elevation: raised (menus, the ticket) and overlay (sheets). Neutral, two layers. */
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.06), 0 8px 24px -8px rgb(0 0 0 / 0.12);
+  --shadow-ticket: 0 1px 2px rgb(0 0 0 / 0.06), 0 24px 48px -20px rgb(0 0 0 / 0.22);
+
+  --animate-stripe: stripe 1.4s linear infinite;
+  @keyframes stripe {
+    to {
+      background-position: 34px 0;
+    }
+  }
+}
+
+:root {
+  color-scheme: light;
+  accent-color: var(--color-stellar);
+  caret-color: var(--color-stellar);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+::selection {
+  background: var(--color-stellar-soft);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-stellar);
+  outline-offset: 2px;
+}
+
+@utility font-wide {
+  font-stretch: 125%;
+}
+@utility font-semiwide {
+  font-stretch: 112%;
+}
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The signature: a yellow band means money is held in escrow. Used nowhere else. */
+@utility hazard {
+  background-image: repeating-linear-gradient(-45deg, var(--color-danfo) 0 12px, var(--color-danfo-light) 12px 24px);
+  background-size: 34px 34px;
+}
+
+/* Ticket perforation */
+@utility perf {
+  background-image: radial-gradient(circle, var(--color-ink-4) 1.5px, transparent 1.6px);
+  background-size: 10px 4px;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  .toast-in {
+    animation: toast-in 0.2s ease-out;
+  }
+
+  @keyframes typing {
+    0%,
+    80%,
+    100% {
+      opacity: 0.3;
+    }
+    40% {
+      opacity: 1;
+    }
+  }
+  .typing-dot {
+    animation: typing 1.1s infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
