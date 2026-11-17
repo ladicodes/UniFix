@@ -1,0 +1,76 @@
+name: backend
+
+on:
+  push:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+  pull_request:
+    paths: ["backend/**", ".github/workflows/backend.yml"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: unifix
+          POSTGRES_PASSWORD: unifix-ci
+          POSTGRES_DB: unifix_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U unifix -d unifix_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://unifix:unifix-ci@localhost:5432/unifix_test
+      DATABASE_URL: postgresql+psycopg://unifix:unifix-ci@localhost:5432/unifix_test
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.7"
+      - name: Install
+        run: uv sync --frozen
+      - name: Lint
+        run: uv run ruff check app tests scripts migrations
+      - name: Format
+        run: uv run ruff format --check app tests scripts migrations
+      - name: Types
+        run: uv run mypy
+      - name: Import contracts
+        run: uv run lint-imports
+      - name: Migrations round-trip
+        run: |
+          uv run alembic upgrade head
+          uv run alembic downgrade base
+          uv run alembic upgrade head
+          uv run alembic check
+      - name: OpenAPI is current
+        run: uv run python -m scripts.export_openapi --check
+      - name: Tests (PostgreSQL 16)
+        run: uv run pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Build image
+        run: docker build -t unifix-backend:ci .
+      - name: Image starts and passes /health
+        run: |
+          docker run -d --name api -p 8000:8000 \
+            -e ENV=development \
+            -e DATABASE_URL=postgresql+psycopg://u:p@127.0.0.1:5432/none \
+            -e JWT_SECRET=ci-only-secret-value-that-is-long-enough-xxxxxxxx \
+            -e CORS_ORIGINS=http://localhost:3000 \
+            unifix-backend:ci
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:8000/health && exit 0; sleep 1; done
+          docker logs api; exit 1

@@ -1,7 +1,7 @@
 # UniFix API Contract (for the frontend)
 
 Audience: Victor (frontend). You should not need to read backend code to integrate.
-Status: **Planned contract, revision 3 (2026-11-17). No endpoint below exists yet.** Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
+Status: **Revision 3 (2026-11-17).** §1–§4 are **implemented** (Issue #1). Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
 
 Revision 3 changes:
 
@@ -130,7 +130,7 @@ The cookie routes require **all** of the following:
 | PATCH | `/auth/me` | Bearer | `{name?, city?, campus_id?, phone?}` | `User` |
 | POST | `/auth/change-password` | Bearer | `{current_password, new_password}` | `204` (other sessions revoked) |
 | POST | `/auth/verify-email/request` | Bearer | — | `202` |
-| POST | `/auth/verify-email/confirm` | — | `{token}` | `200` |
+| POST | `/auth/verify-email/confirm` | — | `{token}` | `200 User` |
 | POST | `/auth/password-reset/request` | — | `{email}` | `202` (always) |
 | POST | `/auth/password-reset/confirm` | — | `{token, new_password}` | `204` (all sessions revoked) |
 | PATCH | `/admin/users/{id}/status` | Bearer (admin) | `{status, reason}` | `User` |
@@ -138,12 +138,19 @@ The cookie routes require **all** of the following:
 ```ts
 AuthResponse = { access_token: string; token_type: "Bearer"; expires_in: number /* seconds */; user: User }
 User = { id; name; email; role: "CUSTOMER"|"PROFESSIONAL"|"ADMIN"; status: "ACTIVE"|"SUSPENDED"|"DEACTIVATED";
-         email_verified: boolean; city; country: "NG"|"GH"; campus: Campus | null; phone: string | null;
-         professional_id: string | null;    // Issue 2
-         wallet_address: string | null; wallet_verified: boolean }   // Issue 5
+         email_verified: boolean; city: string | null; country: "NG"|"GH"; phone: string | null; created_at;
+         campus: Campus | null; professional_id: string | null;    // added by Issue 2
+         wallet_address: string | null; wallet_verified: boolean }  // added by Issue 5
+Session = { id; created_at; last_used_at; user_agent: string | null; ip_hint: string | null; current: boolean }
 ```
 
 The refresh token is **never** in a response body.
+
+Email links point to `${FRONTEND_BASE_URL}/verify-email?token=…` and `${FRONTEND_BASE_URL}/reset-password?token=…`; the frontend posts the token to the matching `/confirm` route.
+
+Login lockout: 5 failed attempts for an email (registered or not) lock that email for 15 minutes (`429`, generic message, `Retry-After`). Auth routes are also rate-limited per client IP.
+
+Timestamps are returned as RFC 3339 with an explicit `+00:00` offset (UTC).
 
 The `professional` object in `register` (`category_slug, headline, bio, area, coverage, years_experience, starting_price_minor, currency, availability, skills`) is processed from Issue 2. Before Issue 2 it is rejected with 422, so the frontend should not send it until then.
 

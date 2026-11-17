@@ -1,0 +1,37 @@
+# Local parity stack: PostgreSQL 16 + the API.
+#   cd backend && docker compose up --build
+# The API reads backend/.env; DATABASE_URL is overridden to reach the db service.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: unifix
+      POSTGRES_PASSWORD: unifix-local-only
+      POSTGRES_DB: unifix_dev
+    ports: ["5433:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unifix -d unifix_dev"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://unifix:unifix-local-only@db:5432/unifix_dev
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://unifix:unifix-local-only@db:5432/unifix_dev
+    ports: ["8000:8000"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:
