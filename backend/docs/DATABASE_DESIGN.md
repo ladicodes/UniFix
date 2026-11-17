@@ -87,8 +87,6 @@ audit_logs (append-only)   idempotency_keys   chain_sync_state   rate_limit_even
 | country | text NOT NULL | `NG` \| `GH` |
 | campus_id | uuid NULL | FK campuses — **column added in Issue 2** |
 | avatar_file_id | uuid NULL | FK files — **added in Issue 2** |
-| failed_login_count | int NOT NULL default 0 | |
-| locked_until | timestamptz NULL | |
 | last_login_at | timestamptz NULL | |
 
 Indexes: `(role, status)`.
@@ -112,6 +110,9 @@ Indexes: `(entity_type, entity_id, occurred_at)`, `(actor_user_id, occurred_at)`
 `data` never contains secrets, tokens or full XDR.
 
 **rate_limit_events**
+
+Implemented in Issue 1. Login lockout uses this table, keyed by a SHA-256 of the email, instead of the planned `users.failed_login_count`/`locked_until` columns. This applies equally to emails that have no account, so lockout cannot be used to discover which emails are registered.
+
 `id, bucket text, key text, at timestamptz`. Index `(bucket, key, at)`. Rows older than the largest window are pruned.
 
 ### Issue 2 — Campuses, categories, professionals, uploads
