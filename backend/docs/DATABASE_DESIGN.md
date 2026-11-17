@@ -1,6 +1,13 @@
 # UniFix — Database Design
 
-Status: **Planning baseline, revision 2 (2026-11-17). Not implemented.** PostgreSQL 16, SQLAlchemy 2.x, Alembic.
+Status: **Planning baseline, revision 3 (2026-11-17). Not implemented.** PostgreSQL 16, SQLAlchemy 2.x, Alembic.
+
+Revision 3:
+
+- Dispute deadline columns removed from escrows (no automatic dispute settlement).
+- Dispute SLA columns added.
+- Demo-rate flag added to escrows and receipts.
+- Session `last_used_at` added.
 
 Revision 2 adds:
 
@@ -87,7 +94,7 @@ audit_logs (append-only)   idempotency_keys   chain_sync_state   rate_limit_even
 Indexes: `(role, status)`.
 
 **auth_session_families**: one row per login (the browser session).
-`id (= JWT sid), user_id FK CASCADE, created_at, absolute_expires_at (created + 30d), revoked_at NULL, revoked_reason text NULL, user_agent text, ip inet`.
+`id (= JWT sid), user_id FK CASCADE, created_at, last_used_at, absolute_expires_at (created + 30d), revoked_at NULL, revoked_reason text NULL, user_agent text, ip inet`.
 Index: `(user_id) WHERE revoked_at IS NULL`.
 
 **auth_refresh_tokens**: one row per refresh token in the family's rotation chain.
@@ -279,9 +286,9 @@ Constraints: `UNIQUE (network, address) WHERE revoked_at IS NULL`; `UNIQUE (user
 | asset_code, asset_issuer, asset_sac_contract_id, asset_decimals smallint | Asset identity; checked at startup against `Asset(code, issuer).contract_id(passphrase)` |
 | asset_units numeric(39,0) `CHECK > 0` | Token amount |
 | fiat_amount_minor bigint, fiat_currency | Copied from the agreement; `CHECK = bookings.amount_minor` (enforced in the service, tested) |
-| fx_rate numeric(24,8), fx_base (asset code), fx_quote (currency), fx_source, fx_locked_at | Locked at preparation |
+| fx_rate numeric(24,8), fx_base (asset code), fx_quote (currency), fx_source, is_demo_rate bool, fx_locked_at | Locked at preparation; `CHECK (fx_source <> 'DEMO_FIXED_RATE' OR is_demo_rate)` |
 | customer_wallet, professional_wallet | |
-| refund_after bigint, review_window bigint, arbitration_window bigint, review_deadline bigint NULL, dispute_deadline bigint NULL | Mirror of the on-chain values |
+| refund_after bigint, review_window bigint, review_deadline bigint NULL, disputed_at bigint NULL | Mirror of the on-chain values |
 | terms_canonical_json text, terms_hash char(64) `UNIQUE` | Escrow-terms document. `CHECK` that the hash equals sha256 of the text, as for agreements |
 | agreement_hash char(64) FK → agreements.agreement_hash | |
 | evidence_hash char(64) NULL | |
@@ -290,7 +297,7 @@ Constraints: `UNIQUE (network, address) WHERE revoked_at IS NULL`; `UNIQUE (user
 | settled_by NULL, professional_payout_units, customer_refund_units numeric(39,0) NULL | `CHECK` they sum to `asset_units` when terminal |
 | verification_error text NULL, last_synced_ledger, last_synced_at, version, created_at, updated_at | |
 
-Index: `(state, refund_after)`, `(state, review_deadline)`, `(state, dispute_deadline)` for the keeper.
+Index: `(state, refund_after)` and `(state, review_deadline)` for the keeper, which never selects disputed escrows.
 
 **chain_transactions**
 
@@ -329,13 +336,13 @@ The cursor is updated in the same transaction as the events it covers.
 `ACCEPTED` is set only by the reconciler, when the professional's refund confirms.
 
 **receipts**
-`id, booking_id FK, escrow_id FK, kind (FUNDING|RELEASE|REFUND|RESOLUTION), number text UNIQUE (UFX-YYYY-NNNNNN), asset_units numeric(39,0), asset_code, asset_issuer, fiat_amount_minor, fiat_currency, tx_hash, payload_canonical_json text, payload_hash char(64), issued_at`.
+`id, booking_id FK, escrow_id FK, kind (FUNDING|RELEASE|REFUND|RESOLUTION), number text UNIQUE (UFX-YYYY-NNNNNN), asset_units numeric(39,0), asset_code, asset_issuer, fiat_amount_minor, fiat_currency, fx_rate, fx_source, is_demo_rate, tx_hash, payload_canonical_json text, payload_hash char(64), issued_at`.
 `UNIQUE (escrow_id, kind)`.
 
 ### Issue 7 — Disputes and reviews
 
 **disputes**
-`id, booking_id FK, escrow_id FK, opened_by FK, reason (INCOMPLETE|DAMAGED|NO_SHOW|PRICE_CHANGED|QUALITY|OTHER), details, status (OPEN|UNDER_REVIEW|AWAITING_SETTLEMENT|RESOLVED|CLOSED), outcome NULL (RELEASE|REFUND|SPLIT|CONCEDED_RELEASE|CONCEDED_REFUND|TIMEOUT_REFUND), split_bps_to_professional int NULL CHECK 0–10000, resolution_note, resolved_by NULL, resolved_at, created_at, updated_at`.
+`id, booking_id FK, escrow_id FK, opened_by FK, reason (INCOMPLETE|DAMAGED|NO_SHOW|PRICE_CHANGED|QUALITY|OTHER), details, status (OPEN|UNDER_REVIEW|AWAITING_SETTLEMENT|RESOLVED|CLOSED), outcome NULL (RELEASE|REFUND|SPLIT|CONCEDED_RELEASE|CONCEDED_REFUND), split_bps_to_professional int NULL CHECK 0–10000, resolution_note, resolved_by NULL, resolved_at, evidence_closes_at, decision_due_at, escalation_level smallint default 0, escalated_at NULL, created_at, updated_at`.
 The outcome is set by the reconciler from the confirmed event, never from the admin's request alone.
 `UNIQUE (booking_id) WHERE status NOT IN ('RESOLVED','CLOSED')`.
 

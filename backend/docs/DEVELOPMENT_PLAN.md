@@ -1,12 +1,13 @@
 # UniFix Backend — Development Plan
 
-Status: **Planning baseline, revision 2 (2026-11-17). Architecture and issue breakdown approved for continued planning. No issue has started; Issue #1 awaits explicit approval.**
+Status: **Planning baseline, revision 3 (2026-11-17). Architecture approved as the working baseline. No issue has started. Issue #1 begins after the planning PR is merged into `main`.**
 
 ## Revision log
 
 | Rev | Date | Change |
 |---|---|---|
 | 1 | 2026-11-17 | Initial architecture, contract, DB design, escrow design, eight issues |
+| 3 | 2026-11-17 | Decisions applied: D1 approved; D4a approved provisionally (production domains to be agreed with Victor); D5/D8 configurable providers; D14 demo-rate labelling; D16a rejected → dispute escalation policy P1 proposed, with no automatic disputed-fund settlement implemented; D17 concessions approved. Issue #1 scope adds session list/revoke and an OpenAPI accuracy check |
 | 2 | 2026-11-17 | Per review: (1) HttpOnly refresh cookie with CSRF/CORS design; (2) single-use WebSocket tickets; (3) snake_case API, frontend changes documented, no dual-case support; (4) deadline-based cancellation, refund, dispute and arbitration policy so no permanent locks, with on-chain completion and concessions; (5) separate fiat/token integer units and a verified testnet USDC configuration; (6) quote immutability triggers and an RFC 8785 agreement → escrow-terms → on-chain hash chain; (7) exactly-once reconciler across restarts and instances; (8) frontend change list F1–F25 with file:line references |
 
 ## 1. The eight issues
@@ -68,7 +69,7 @@ Issue 1 ──► Issue 2 ──► Issue 4 ──► Issue 3 ──► Issue 6 
 | 7 | 6 | disputes lock escrows; reviews need settled bookings |
 | 8 | 1–7 | notifications at every event; admin views over everything; full E2E |
 
-**Recommended order: 1 → 2 → 4 → 3 (Batch 1), then 5 → 6 → 7 → 8 (Batch 2).** Building Issue 4 before Issue 3 removes an inverted dependency: frontend quotes are created inside a conversation (`QuoteInput.conversationId`). Issue numbers stay as the brief defines them. Only the build order changes (decision D1).
+**Approved order (D1): 1 → 2 → 4 → 3 (Batch 1), then 5 → 6 → 7 → 8 (Batch 2).** Building Issue 4 before Issue 3 removes an inverted dependency: frontend quotes are created inside a conversation (`QuoteInput.conversation_id`). Issue numbers stay as the brief defines them. Only the build order changes (decision D1).
 
 Issue 5's contract work depends only on Issue 1. It can start while Batch 1 is in review, if you want to overlap.
 
@@ -89,44 +90,43 @@ Issue 5's contract work depends only on Issue 1. It can start while Batch 1 is i
 5. No TODOs or placeholder endpoints. Anything deferred is listed in the PR as **not done**.
 6. A security self-review against the issue's security section is recorded in the PR.
 
-## 5. Decisions requiring approval
+## 5. Decisions
 
-Each decision has a recommendation. If you approve as-is, I proceed with the recommendation.
-
-Settled in the revision-2 review (no longer open):
+### 5.1 Settled
 
 | ID | Decision | Outcome |
 |---|---|---|
-| D2 | JSON casing | **snake_case** for all fields and query params; enum values `UPPER_SNAKE_CASE`; no dual-case support; frontend changes F19–F20 |
-| D4 | Refresh-token transport | **HttpOnly `SameSite=Strict` cookie**, path-scoped to `/api/v1/auth`; access token in memory; CSRF = Origin allowlist + `X-CSRF-Protection` header + SameSite |
-| D9 | WebSocket auth | **Single-use 30-second tickets** from `POST /ws/tickets`; no tokens in WS URLs |
+| D1 | Build order | **Approved:** 1 → 2 → 4 → 3, then 5 → 6 → 7 → 8 |
+| D2 | JSON casing | snake_case fields and query params; no dual-case support (rev 2) |
+| D4 | Refresh-token transport | HttpOnly `SameSite=Strict` cookie, path-scoped; CSRF = Origin allowlist + `X-CSRF-Protection` + SameSite (rev 2) |
+| D4a | Deployment topology | **Approved provisionally:** same-site frontend + API (`app.` / `api.` subdomains, or a rewrite proxy). The actual production domains are to be agreed with Victor before Issue 8's deployment work |
+| D5 | Email provider | **Configurable:** `EMAIL_BACKEND=console\|smtp`, provider-agnostic SMTP settings; `console` only in development and test |
+| D8 | Object storage | **Configurable:** `STORAGE_BACKEND=local\|s3`, any S3-compatible provider via endpoint, bucket and credentials settings; `local` only in development and test |
+| D9 | WebSocket auth | Single-use 30-second tickets (rev 2) |
+| D14 | FX rate | **Approved:** fixed configured testnet rate, always labelled `source = DEMO_FIXED_RATE`, `is_demo_rate = true` in terms, responses and receipts; UI label "Demo rate — testnet only"; refused off testnet |
+| D16a | Disputed-fund timeout refund | **Rejected.** No automatic settlement of disputed funds. Replaced by P1 |
+| D17 | Concessions during a dispute | **Approved:** voluntary on-chain concessions, each authorised by the conceding party's own wallet (`require_auth`) |
 
-Open (each has a recommendation; approving the plan as-is accepts it):
+### 5.2 Pending approval
 
 | ID | Decision | Recommendation | Needed by |
 |---|---|---|---|
-| D1 | Build order | 1 → 2 → 4 → 3 → 5 → 6 → 7 → 8 | Batch 1 |
-| D3 | List response shape | bare arrays + `X-Total-Count`/`X-Next-Offset` headers rather than `{items,total}` envelopes. Since F19 already changes every type, switching to envelopes now costs little; your call | Issue 1 |
-| D4a | Production domain topology | `app.<domain>` + `api.<domain>` (same-site), or a Next.js rewrite proxy. Required for the cookie. Victor's hosting must fit this | Issue 1 (documented), Issue 8 (deployed) |
-| D4b | Enum value casing | `UPPER_SNAKE_CASE` for all enum values (F20). Alternative: keep the frontend's lowercase values | Issue 1 |
-| D5 | Email delivery | generic SMTP sender; you choose the provider (e.g. Resend, Brevo, Postmark SMTP). Dev logs links to console. Without a provider, verification and reset work in dev only | Issue 1 |
-| D6 | Email verification gate | registration works unverified; **funding and quoting require a verified email** | Issue 1 / 3 |
-| D7 | Phone verification | no SMS provider in MVP; `PHONE` verification is reviewed manually by an admin | Issue 2 |
-| D8 | Prod object storage | S3-compatible (Cloudflare R2 recommended for cost); local disk in dev and test | Issue 2 (interface) / Issue 8 (prod) |
-| D10 | Review eligibility | `COMPLETED` and `RESOLVED` (dispute split) bookings; not `REFUNDED`/`CANCELLED`; 30-day window | Issue 7 |
-| D11 | Arbiter custody | human-held Freighter wallet (multisig before mainnet); the backend holds **no** key that can move funds | Issue 5 |
-| D12 | Operator co-signature on `fund` | yes: blocks mislabelled or squatted escrows; the operator key cannot move funds | Issue 5 |
-| D13 | Escrow asset | Circle testnet USDC (`GBBD47IF…LFLA5`, SAC `CBIELTK6…DAMA`, verified 2026-11-17) for demos; a UniFix-issued test asset for automated E2E. Note: the issuer has `AUTH_REVOCABLE` set | Issue 5 |
-| D14 | FX rate | fixed configured USDC/NGN rate on testnet, locked per escrow, `source = CONFIGURED_TESTNET`; the rate value itself is yours to set | Issue 6 |
-| D15 | Platform fee | none in MVP | Issue 5 |
-| D16a | Dispute-timeout fallback | **refund to customer** if the arbiter has not resolved within `arbitration_window`. Alternative: 50/50 split | Issue 5 |
-| D16b | Keeper auto-finalization | the backend keeper triggers all matured timeouts (auto-release after review, refund after `refund_after`, dispute fallback) 15 min after maturity, with 24 h warnings | Issue 6 |
-| D16c | Default windows | `SERVICE_GRACE` 3 days after the agreed completion date; review window 72 h; arbitration window 30 days | Issue 5 |
-| D17 | Settlement during a dispute | **concessions only**: the customer may release to the professional, the professional may refund the customer; only the arbiter can split. *Changed from rev 1 ("not allowed"), to reduce dependence on the arbiter* | Issue 5 |
-| D21 | Professional cancellation after funding | allowed via a full refund; counted in a cancellation metric shown to admins (not public in MVP) | Issue 6 |
+| **P1** | Dispute escalation and fallback policy (STELLAR_ESCROW_DESIGN §4.5) | Adopt the escalation ladder; **F-A** (no automatic settlement) for the testnet MVP; optionally **F-D** (voluntary two-signature mutual split) in the Issue 5 contract; choose F-B or F-C before any real-value use. The contract is immutable, so a fallback approved after Issue 5's deployment applies only to escrows funded on a later deployment | Issue 5 (contract), Issue 7 (process) |
+| D3 | List response shape | Bare arrays + `X-Total-Count`/`X-Next-Offset` headers | Issue 1 |
+| D4b | Enum value casing | `UPPER_SNAKE_CASE` (F20) | Issue 1 |
+| D6 | Email verification gate | Registration works unverified; quoting and funding require a verified email | Issue 1 / 3 |
+| D7 | Phone verification | Manual admin review (no SMS provider) | Issue 2 |
+| D10 | Review eligibility | `COMPLETED` and `RESOLVED` bookings; 30-day window | Issue 7 |
+| D11 | Arbiter custody | Human-held Freighter wallet; 2-of-3 multisig before real value | Issue 5 |
+| D12 | Operator co-signature on `fund` | Yes | Issue 5 |
+| D13 | Escrow asset | Circle testnet USDC (verified) for demos; UniFix test asset for automated E2E | Issue 5 |
+| D15 | Platform fee | None in MVP | Issue 5 |
+| D16b | Keeper | Auto-finalize the two **undisputed** timeouts 15 min after maturity, with 24 h warnings | Issue 6 |
+| D16c | Windows | `SERVICE_GRACE` 3 days; review window 72 h | Issue 5 |
 | D18 | Deployment target | Render, Railway or Fly.io + managed PostgreSQL 16; single API instance | Issue 8 |
-| D19 | Error tracking | none by default; optional Sentry | Issue 8 |
-| D20 | CI location | `.github/workflows/backend.yml` at repo root (the only file outside `backend/`) | Issue 1 |
+| D19 | Error tracking | None by default; optional Sentry | Issue 8 |
+| D20 | CI location | `.github/workflows/backend.yml` (the only file outside `backend/`) | Issue 1 |
+| D21 | Professional cancellation after funding | Allowed via full refund; tracked as an admin metric | Issue 6 |
 
 ## 6. Readiness
 
@@ -143,7 +143,7 @@ Open (each has a recommendation; approving the plan as-is accepts it):
 | Handi PRD (the "section 10" API spec the frontend references) | ❌ Not in the workspace | Optional. The plan uses the frontend's actual code as the contract |
 | Testnet asset | ✅ Circle USDC verified on live testnet; RPC healthy (retention 120,960 ledgers ≈ 7 days) | Re-verified by the startup check (Issue 5) |
 
-**Batch 1 (Issues 1–4) is ready to start** once Issue #1 is approved. The open decisions D1, D3, D4a, D4b and D5–D7 proceed on their recommendations unless you say otherwise. PostgreSQL will be started at the beginning of Issue 1. No existing database is reset or deleted.
+**Issue #1 starts once the planning PR is merged into `main`.** The pending decisions D3, D4b, D6 and D7 proceed on their recommendations unless you say otherwise. PostgreSQL will be started at the beginning of Issue 1. No existing database is reset or deleted.
 
 ## 7. GitHub issues
 
@@ -178,7 +178,8 @@ Open (each has a recommendation; approving the plan as-is accepts it):
 | Location privacy for students | Approximate coordinates only; address revealed after funding (Issues 2, 3) |
 | WS token leakage via URLs | Query-string log redaction; short-lived tokens (Issue 4) |
 | Brute force on login or wallet challenge | DB-backed rate limits and lockout (Issues 1, 5) |
-| Funds locked by an unresponsive party or arbiter | On-chain deadlines for every non-terminal state; permissionless `finalize_expired`; keeper (Issues 5, 6); D16a–c |
+| Funds locked by an unresponsive party | On-chain deadlines for every undisputed non-terminal state; permissionless `finalize_expired`; keeper (Issues 5, 6); D16b–c |
+| Disputed funds stuck if the arbiter is unavailable | Escalation ladder with SLAs; admin rotates in a backup arbiter; 2-of-3 multisig and key recovery before real value; long-stop fallback only if P1 is approved (STELLAR_ESCROW_DESIGN §4.5) |
 | Asset issuer freeze (USDC `AUTH_REVOCABLE`) | Inherent to regulated stablecoins; documented trust assumption (STELLAR_ESCROW_DESIGN §3) |
 | Testnet reset wipes contract state | Scripted redeploy; network epoch on escrow rows (Issue 5) |
 | Freighter SEP-53 encoding mismatch | Verify against a real Freighter fixture before closing Issue 5 |

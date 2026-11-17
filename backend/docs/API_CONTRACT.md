@@ -1,7 +1,13 @@
 # UniFix API Contract (for the frontend)
 
 Audience: Victor (frontend). You should not need to read backend code to integrate.
-Status: **Planned contract, revision 2 (2026-11-17). No endpoint below exists yet.** Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
+Status: **Planned contract, revision 3 (2026-11-17). No endpoint below exists yet.** Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
+
+Revision 3 changes:
+
+- Session list and revoke endpoints.
+- No automatic dispute timeout; disputes carry SLA dates instead.
+- The demo FX rate is flagged in every response and receipt (F26).
 
 Revision 2 changes:
 
@@ -118,6 +124,8 @@ The cookie routes require **all** of the following:
 | POST | `/auth/refresh` | cookie + Origin + CSRF header | — | `200 AuthResponse` + rotated `Set-Cookie` |
 | POST | `/auth/logout` | cookie + Origin + CSRF header | — | `204` + cookie cleared |
 | POST | `/auth/logout-all` | Bearer | — | `204` + cookie cleared |
+| GET | `/auth/sessions` | Bearer | — | `Session[]` = `{id, created_at, last_used_at, user_agent, ip_hint, current}` |
+| DELETE | `/auth/sessions/{id}` | Bearer | — | `204` (revokes that session; own sessions only) |
 | GET | `/auth/me` | Bearer | — | `User` |
 | PATCH | `/auth/me` | Bearer | `{name?, city?, campus_id?, phone?}` | `User` |
 | POST | `/auth/change-password` | Bearer | `{current_password, new_password}` | `204` (other sessions revoked) |
@@ -364,9 +372,9 @@ Escrow = { id; booking_id; contract_id; escrow_id_hex;
            state: "CREATED"|"FUNDED"|"COMPLETION_SUBMITTED"|"DISPUTED"|"RELEASED"|"REFUNDED"|"RESOLVED";
            asset: Asset; asset_amount: string;
            fiat: { amount_minor: number; currency: "NGN"|"GHS" };
-           fx: { rate: string; base: "USDC"; quote: "NGN"|"GHS"; source: "CONFIGURED_TESTNET"; locked_at: string };
+           fx: { rate: string; base: "USDC"; quote: "NGN"|"GHS"; source: "DEMO_FIXED_RATE"; is_demo_rate: boolean; locked_at: string };
            fee_stroops: string | null; customer_wallet; professional_wallet;
-           refund_after: number; review_deadline: number | null; dispute_deadline: number | null;
+           refund_after: number; review_deadline: number | null; disputed_at: number | null;
            reconciliation: "AWAITING_SIGNATURE"|"PENDING_CONFIRMATION"|"CONFIRMED"|"FAILED";
            failure_reason: string | null; settled_by: "CUSTOMER"|"PROFESSIONAL"|"ARBITER"|"TIMEOUT" | null;
            professional_payout: string | null; customer_refund: string | null;
@@ -374,7 +382,8 @@ Escrow = { id; booking_id; contract_id; escrow_id_hex;
 EscrowTransaction = { kind: "FUND"|"SUBMIT_COMPLETION"|"RELEASE"|"REFUND"|"EXTEND"|"DISPUTE"|"RESOLVE"|"FINALIZE";
                       hash; ledger: number | null; at; status: "PENDING"|"CONFIRMED"|"FAILED"|"EXPIRED"; explorer_url }
 Receipt = { id; number; kind: "FUNDING"|"RELEASE"|"REFUND"|"RESOLUTION"; booking_id;
-            asset: Asset; asset_amount: string; fiat: { amount_minor; currency }; tx_hash; ledger; issued_at; payload_hash }
+            asset: Asset; asset_amount: string; fiat: { amount_minor; currency };
+            fx: { rate; source; is_demo_rate: boolean }; tx_hash; ledger; issued_at; payload_hash }
 ```
 
 `GET /escrows/{id}` → `Escrow`. `GET /bookings/{id}/receipts` → `Receipt[]`.
@@ -385,7 +394,12 @@ Receipt = { id; number; kind: "FUNDING"|"RELEASE"|"REFUND"|"RESOLUTION"; booking
 - The professional wallet exists with a USDC trustline.
 - `GET /wallets` reports `account_exists` and `has_escrow_trustline`.
 
-**Deadlines:** show `refund_after`, `review_deadline` and `dispute_deadline` as countdowns. These are the policies the contract enforces (STELLAR_ESCROW_DESIGN §4).
+**Deadlines:**
+
+- Show `refund_after` and `review_deadline` as countdowns. These are the policies the contract enforces (STELLAR_ESCROW_DESIGN §4).
+- Disputes have **no on-chain deadline**. Show the dispute's `sla` dates instead.
+
+**Demo rate:** while `fx.is_demo_rate` is `true`, label the rate and every converted amount **"Demo rate — testnet only"**.
 
 ## 10. Completion, disputes, reviews — Issues 6 and 7
 
@@ -403,7 +417,8 @@ Receipt = { id; number; kind: "FUNDING"|"RELEASE"|"REFUND"|"RESOLUTION"; booking
 ```ts
 Dispute = { id; booking_id; escrow_id; opened_by; reason: "INCOMPLETE"|"DAMAGED"|"NO_SHOW"|"PRICE_CHANGED"|"QUALITY"|"OTHER";
             details; status: "OPEN"|"UNDER_REVIEW"|"AWAITING_SETTLEMENT"|"RESOLVED"|"CLOSED"; opened_at;
-            outcome: "RELEASE"|"REFUND"|"SPLIT"|"CONCEDED_RELEASE"|"CONCEDED_REFUND"|"TIMEOUT_REFUND" | null;
+            outcome: "RELEASE"|"REFUND"|"SPLIT"|"CONCEDED_RELEASE"|"CONCEDED_REFUND" | null;
+            sla: { evidence_closes_at: string; decision_due_at: string; escalation_level: number; escalated_at: string | null };
             split_bps_to_professional: number | null; resolution_note: string | null; resolved_at: string | null;
             evidence: DisputeEvidence[] }
 Review = { id; booking_id; professional_id; customer_id; customer_name; job_title;
@@ -438,8 +453,9 @@ cd ../frontend && NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1 npm run dev  
 
 Every difference between this contract and the frontend as committed (`41f07f4`).
 
-- **F1–F18** are the differences identified in the first review. Items marked *(rev 2)* changed in this revision.
-- **F19–F25** are new in revision 2.
+- **F1–F18** are the differences identified in the first review. Items marked *(rev 2)* or *(rev 3)* changed later.
+- **F19–F25** were added in revision 2.
+- **F26** was added in revision 3.
 
 Nothing here affects demo mode (`src/lib/api/demo.ts`).
 
@@ -468,5 +484,8 @@ Nothing here affects demo mode (`src/lib/api/demo.ts`).
 | F21 | WebSocket auth *(new)* | Access token in the URL (`live.ts:146`) | `POST /ws/tickets` before each (re)connect, then `?ticket=`; handle close codes `4000`/`4401` with a new ticket | 4 |
 | F22 | Money fields *(new)* | Floats: `startingPrice`, `labour`, `materials`, `total` (`types.ts:67,129`), escrow `amount`, `localAmount`, `rate`, `networkFee` (`types.ts:206–210`) | Fiat: `*_minor` integers + `currency`. Escrow: `asset_amount` string + `asset` object, `fiat {amount_minor, currency}`, `fx {rate,…}` (string rate), `fee_stroops` string. Format with integer or BigInt math | 2, 3, 6 |
 | F23 | Completion signature *(new)* | `submitCompletion` is a single call | Prepare (evidence) → professional signs → `POST /bookings/{id}/completion/submit` | 6 |
-| F24 | Deadlines and cancellation *(new)* | None | Show `refund_after` / `review_deadline` / `dispute_deadline`. Actions: extend deadline (customer), cancellation request and decline, concede release or refund during a dispute | 6, 7 |
+| F24 | Deadlines and cancellation *(new; rev 3)* | None | Show `refund_after` / `review_deadline` countdowns and dispute `sla` dates (disputes have no on-chain deadline). Actions: extend deadline (customer), cancellation request and decline, concede release or refund during a dispute (each signed by the conceding party's wallet) | 6, 7 |
 | F25 | Agreement proof *(new, optional)* | `agreementHash` displayed only | Optional "verify" view using `GET /bookings/{id}/agreement` | 3, 6 |
+| F26 | Demo FX rate label *(new, rev 3)* | Rate and local amount shown without qualification | When `fx.is_demo_rate` is true, label the rate and converted amounts "Demo rate — testnet only" (booking, fund panel, receipt) | 6 |
+
+**Production domains (D4a, provisional):** the cookie design requires the frontend and API to be same-site. The actual production domains will be agreed between Ladipo and Victor before Issue 8's deployment work.

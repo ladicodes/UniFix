@@ -1,6 +1,12 @@
 # UniFix Backend — Architecture
 
-Status: **Planning baseline, revision 2 (2026-11-17). Nothing described here is implemented yet.**
+Status: **Planning baseline, revision 3 (2026-11-17). Approved as the working baseline. Nothing described here is implemented yet.**
+
+Revision 3:
+
+- Approved decisions applied: D1, D4a (provisional), D5, D8, D14, D17.
+- No automatic settlement of disputed funds (§8.2).
+- Configurable email and storage providers (§6, §11).
 
 Revision 2:
 
@@ -172,7 +178,10 @@ Each module has the same files, and only the ones it needs:
 - Roles: `customer`, `professional`, `admin`. Admins cannot self-register. They are created with `uv run python -m app.cli create-admin`.
 - Account status: `ACTIVE`, `SUSPENDED`, `DEACTIVATED`. Suspension revokes all sessions immediately.
 - Email is the login identifier. It is case-insensitive (`citext`) and unique. A university email address is **not** required. Campus is a self-declared association (see Issue 2).
-- Email verification and password reset use single-use, hashed, expiring tokens. Email is sent over SMTP (any provider). In `ENV=development` the sender writes the link to the console log, and that mode refuses to start when `ENV=production`.
+- Email verification and password reset use single-use, hashed, expiring tokens.
+- **Email delivery is configurable (D5):** `EMAIL_BACKEND = console | smtp`.
+  - `smtp` works with any provider through `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` and `SMTP_TLS_MODE` (`starttls` | `tls`). No provider is hardcoded.
+  - `console` writes messages to the log and is allowed only when `ENV` is `development` or `test`. Production refuses to start with it.
 
 **Tokens**
 
@@ -252,7 +261,7 @@ The escrow is later bound to this agreement through the escrow-terms hash stored
    COMPLETION_SUBMITTED: professional refund ─► REFUNDED
    FUNDED | IN_PROGRESS | COMPLETION_SUBMITTED ── dispute lock confirmed ─► DISPUTED
    DISPUTED ─► COMPLETED (arbiter 100% to pro, or customer concedes)
-             | REFUNDED  (arbiter 0%, professional concedes, or dispute_deadline fallback)
+             | REFUNDED  (arbiter 0%, or professional concedes)
              | RESOLVED  (arbiter split)
 ```
 
@@ -266,13 +275,13 @@ The escrow is later bound to this agreement through the escrow-terms hash stored
 | `COMPLETION_SUBMITTED` | `COMPLETED` | reconciler | `released` event (customer, or `Timeout` auto-release) |
 | `FUNDED`/`IN_PROGRESS`/`COMPLETION_SUBMITTED` | `REFUNDED` | reconciler | `refunded` event (professional refund, or `Timeout` after `refund_after` in Funded) |
 | `FUNDED`/`IN_PROGRESS`/`COMPLETION_SUBMITTED` | `DISPUTED` | reconciler | `disputed` event. The off-chain dispute record blocks release and refund **preparation** at once (concessions excepted) |
-| `DISPUTED` | `COMPLETED`/`REFUNDED`/`RESOLVED` | reconciler | `released` / `refunded` / `resolved` event: arbiter, concession, or timeout fallback |
+| `DISPUTED` | `COMPLETED`/`REFUNDED`/`RESOLVED` | reconciler | `released` / `refunded` / `resolved` event: arbiter decision or a party's wallet-signed concession. No timeout exit (STELLAR_ESCROW_DESIGN §4.5) |
 
 Rules:
 
 - Every transition goes through **one function**, `bookings.service.transition(booking, to, actor, reason)`. It checks the table above and writes `booking_events` plus an audit entry.
 - Every financial transition is made **only** by the reconciler, from confirmed and verified chain data. No route can set one.
-- Cancellation, refund, dispute and arbitration policies, with their deadlines, are specified in STELLAR_ESCROW_DESIGN §4. Every non-terminal state has a deadline-based exit, so funds are never permanently locked.
+- Cancellation, refund, dispute and arbitration policies, with their deadlines, are specified in STELLAR_ESCROW_DESIGN §4. Every *undisputed* non-terminal state has a deadline-based exit. Disputed escrows are settled only by the arbiter or a party's concession, and the escalation and fallback policy awaits approval (STELLAR_ESCROW_DESIGN §4.5, P1).
 - FixMe's `TECHNICIAN_ACCEPTED` state is dropped. A professional accepts the job by issuing the quote.
 
 ### 8.3 Escrow state (mirrors the contract)
@@ -325,7 +334,9 @@ The reconciliation status is tracked separately: `AWAITING_SIGNATURE` → `PENDI
 - `POST /uploads` (multipart) → `{id, url, contentType, size, …}`. Messages, portfolio items, evidence and verification records then reference file IDs. Base64 `dataUrl`s inside JSON are not accepted.
 - Validation: size cap per purpose; detect the real type from file bytes; allow images (jpeg/png/webp) and PDFs (verification documents only). Pillow re-encodes images, which strips EXIF and GPS. This matters for student privacy.
 - Visibility: `PUBLIC` (avatars, portfolio) or `PRIVATE` (chat attachments, evidence, verification documents). Private files are served by `GET /files/{id}`, which applies the access policy for each purpose. Verification documents are visible to the owner and admins only.
-- Storage is behind one small interface with two implementations: local disk (dev and test) and S3-compatible (prod, e.g. Cloudflare R2 or AWS S3). The prod implementation is the only storage dependency added.
+- **Storage is configurable (D8):** `STORAGE_BACKEND = local | s3`, behind one small interface.
+  - `s3` works with any S3-compatible provider through `S3_ENDPOINT_URL`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`. No provider is hardcoded.
+  - `local` is for development and test only. Production refuses to start with it.
 
 ## 12. Observability and operations
 

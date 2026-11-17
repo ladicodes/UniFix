@@ -1,8 +1,14 @@
 # UniFix — Stellar Wallets and Soroban Escrow Design
 
-Status: **Design for review, revision 2 (2026-11-17). Not implemented.** Implemented by Issues 5 (contract + wallets), 6 (funding, completion, release, refunds, reconciliation, keeper) and 7 (disputes, arbitration).
+Status: **Design for review, revision 3 (2026-11-17). Not implemented.** Implemented by Issues 5 (contract + wallets), 6 (funding, completion, release, refunds, reconciliation, keeper) and 7 (disputes, arbitration).
 
 Network: **Stellar testnet** (`Test SDF Network ; September 2015`). Every operation is a real testnet transaction. Nothing is simulated or presented as settled before on-chain confirmation.
+
+Revision 3 (decisions applied):
+
+- No automatic settlement of disputed funds; the escalation and fallback policy is proposed and pending approval (§4.5, P1).
+- Voluntary on-chain concessions approved (D17).
+- The fixed testnet conversion rate is marked as a demo rate everywhere (§8).
 
 Revision 2 changes:
 
@@ -24,7 +30,7 @@ Revision 2 changes:
 2. The contract enforces who may move funds, independently of the backend and the frontend.
 3. The backend cannot release, refund or redirect funds by changing data. It holds no key that can choose a recipient or an amount.
 4. Double release, refund after release, release after refund, and arbitrary settlement during a dispute are all impossible **on-chain**.
-5. **No permanent lock.** Every non-terminal escrow state has a path to a terminal state that needs no UniFix key (§4.4).
+5. **No permanent lock where avoidable.** Every *undisputed* non-terminal state has a path to a terminal state that needs no UniFix key (§4.4). Disputed escrows are settled only by the arbiter or a voluntary concession until a fallback policy is approved (§4.5).
 6. The database is a verified mirror of chain state. Each chain event is applied exactly once, including across restarts and multiple instances (§10).
 
 **Non-goals (MVP)**
@@ -34,7 +40,7 @@ Revision 2 changes:
 - Fee sponsorship.
 - Mainnet.
 - Fiat on/off-ramps.
-- Mutual two-signature partial settlements, without the arbiter (post-MVP, §12).
+- Mutual two-signature partial settlements, without the arbiter (proposed as F-D in §4.5, pending approval).
 
 ## 2. Actors and keys
 
@@ -45,7 +51,7 @@ Revision 2 changes:
 | **Operator** | Backend (`STELLAR_OPERATOR_SECRET`, env only) | Co-authorize `fund`: attests that the escrow terms are the ones the backend derived from an accepted agreement. As an ordinary fee-paying account it can also call the permissionless `finalize_expired`, whose outcome the contract fixes |
 | **Arbiter** | UniFix operations wallet (Freighter, human-held), **not** the backend | `resolve`, only escrows in `Disputed`, only splitting between the two parties |
 | **Contract admin** | UniFix operations wallet (multisig before mainnet) | `set_arbiter`, `set_operator`, `set_admin`. It has no access to funds and cannot change any existing escrow's terms or deadlines |
-| **Anyone** | — | `finalize_expired` once a deadline has passed. The outcome is fixed by the contract |
+| **Anyone** | — | `finalize_expired` once an **undisputed** deadline has passed. The outcome is fixed by the contract |
 
 ## 3. Trust model
 
@@ -55,12 +61,13 @@ Revision 2 changes:
    - The arbiter can act only after a **party** opened the dispute.
    - It splits funds only between the two parties.
    - Either party can concede at any time.
-   - If the arbiter does nothing for `arbitration_window`, the fallback outcome applies automatically (§4.3).
+   - There is **no automatic settlement** of disputed funds. If the arbiter does not act, the escalation ladder in §4.5 applies. Its long-stop fallback is not implemented until approved.
 4. **The admin can replace the arbiter, operator and admin.** A compromised admin key can therefore decide **disputed** escrows only. It cannot touch undisputed escrows or change deadlines.
 5. **A stolen operator key** lets an attacker co-sign new `fund` calls. Each still needs the customer's own signature, and the customer's money still goes only to that customer or professional. The attacker can also trigger deadlines that have already passed, which the contract pays out to the predetermined party anyway. No theft path exists.
 6. **The backend is trusted for liveness and display, not custody.** If UniFix disappears:
    - parties can still `release`, `refund` or `open_dispute` with any Stellar tool;
-   - anyone can call `finalize_expired` after a deadline;
+   - anyone can call `finalize_expired` after an undisputed deadline;
+   - disputed escrows wait for an arbiter. If the admin and arbiter keys were both lost, those funds would stay locked (§4.4, §4.5);
    - the reconciler catches up from chain events when the backend returns.
 7. **Asset issuer risk.** Circle's testnet USDC issuer has `AUTH_REVOCABLE` set, while clawback is disabled (verified 2026-11-17, §8.1). The issuer can freeze balances, including the contract's. This is inherent to regulated stablecoins and is outside our control.
 8. **Off-chain facts the contract cannot check:** whether work was done. That is the customer's judgement (release or dispute), the deadlines, or the arbiter's decision.
@@ -74,7 +81,6 @@ Revision 2 changes:
 |---|---|---|
 | `refund_after` | Later of (agreed `completion_date` 23:59 Africa/Lagos + `SERVICE_GRACE` [3 days]) or (funding time + 24 h) | `funded_at + 24h ≤ refund_after ≤ funded_at + 180d` |
 | `review_window` | 72 h, from `submit_completion` | 24 h – 14 d |
-| `arbitration_window` | 30 days, from `open_dispute` | 7 d – 90 d |
 
 The windows are copied into each escrow record at `fund`. Later admin config changes never affect existing escrows.
 
@@ -101,7 +107,7 @@ The windows are copied into each escrow record at `fund`. Later admin config cha
       resolve(arbiter, professional_amount) → Resolved (or Released/Refunded at 100%/0%)
       release(customer)  → Released   (concession: customer accepts professional's position)
       refund(professional) → Refunded (concession: professional accepts customer's position)
-      finalize_expired(anyone) [now ≥ dispute_deadline] → fallback (D16a: Refunded)
+      (no timeout exit — finalize_expired fails with InvalidState; see §4.5)
    Released | Refunded | Resolved: terminal, every mutating call fails with InvalidState
 ```
 
@@ -112,27 +118,67 @@ The windows are copied into each escrow record at `fund`. Later admin config cha
 | `PENDING_PAYMENT` (no funds) | Cancel → `CANCELLED` | Cancel → `CANCELLED` | Booking expires after 7 days → `CANCELLED` |
 | `FUNDED` / `IN_PROGRESS` | *Cancellation request* (off-chain). The professional accepts by signing `refund`, or declines. After a decline, or 48 h without an answer, the customer may open a dispute, or wait for `refund_after` | Signs `refund` → `REFUNDED`. Recorded as a professional cancellation | `refund_after` passes → keeper calls `finalize_expired` → `REFUNDED` |
 | `COMPLETION_SUBMITTED` | Opens a dispute within `review_window` | `refund` → `REFUNDED` | `review_deadline` passes → `finalize_expired` → `COMPLETED` (auto-release) |
-| `DISPUTED` | Concede (`release`) → `COMPLETED` | Concede (`refund`) → `REFUNDED` | Arbiter resolves. If the arbiter does nothing by `dispute_deadline`, the fallback (**refund to customer**, D16a) applies |
+| `DISPUTED` | Concede (`release`) → `COMPLETED` | Concede (`refund`) → `REFUNDED` | Arbiter resolves under the escalation ladder (§4.5). **No automatic settlement** |
 
 Rules:
 
 - **A professional must submit completion before `refund_after`**, or obtain an extension from the customer (`extend`). After that deadline, the agreed outcome is a refund.
-- **Disputes must be opened before the deadline of the current state matures.** Once a deadline has passed, its outcome is final. The concessions are the only settlement actions a party can take during a dispute, and each moves funds **only in the other party's favour**, so neither party can take funds for themselves. This satisfies "disputes block ordinary settlement" while reducing dependence on the arbiter (D17).
+- **Disputes must be opened before the deadline of the current state matures.** Once a deadline has passed, its outcome is final. The concessions are the only settlement actions a party can take during a dispute, and each moves funds **only in the other party's favour**, so neither party can take funds for themselves. This satisfies "disputes block ordinary settlement" while reducing dependence on the arbiter. **D17 is approved:** each concession is authorised on-chain by the conceding party's own wallet (`customer.require_auth()` for `release`, `professional.require_auth()` for `refund`). The backend only prepares the unsigned transaction.
 - The arbiter's split: `professional_amount = floor(asset_amount × bps / 10000)`, with the remainder to the customer.
 - Notifications warn both parties 24 h before any deadline (Issue 8).
 
-### 4.4 Liveness proof (no permanent lock)
+### 4.4 Liveness (avoiding permanent locks)
 
 | State | Exit that needs no UniFix key |
 |---|---|
 | Funded | `finalize_expired` after `refund_after` (≤ 180 days) |
 | CompletionSubmitted | `finalize_expired` after `review_deadline` (≤ 14 days) |
-| Disputed | `finalize_expired` after `dispute_deadline` (≤ 90 days) |
+| Disputed | **None in the MVP contract.** Exits are an arbiter decision (the admin can replace an unavailable arbiter) or a voluntary concession by a party. The long-stop fallback awaits policy approval (§4.5) |
 
 Residual risks:
 
 - An issuer freeze (§3.7).
 - Ledger-entry archival. Every mutating call extends TTL, and an archived persistent entry can be restored with a `RestoreFootprint` operation. Archival delays access but never destroys an entry.
+- **Disputed escrows if both the admin and arbiter keys are lost.** Funds would stay locked. Before any real-value use, mitigate with a 2-of-3 multisig for the admin and arbiter, a documented key-recovery procedure, and the escalation ladder in §4.5.
+
+### 4.5 Dispute escalation and fallback policy — **PROPOSED, PENDING APPROVAL (P1)**
+
+**Decision record (rev 3).** D16a, "refund the whole escrow to the customer when the arbiter fails to act", was **rejected**. Arbiter inaction is UniFix's failure, not evidence about the job, so it must not decide the outcome for either party.
+
+**Nothing in this section that settles funds automatically will be implemented until approved.** The MVP contract has **no** timeout path out of `Disputed`: `finalize_expired` on a disputed escrow fails with `InvalidState`.
+
+**Principles:**
+
+1. A human decision is the normal outcome.
+2. No silent default in favour of either party.
+3. Any fallback is **explicitly agreed** by both parties before funding: the policy version is part of the agreement and escrow-terms hashes.
+4. Liveness comes first from operations (backup arbiters, multisig), not from defaults.
+
+**Proposed escalation ladder** (off-chain process, tracked in `disputes`, visible to both parties):
+
+| Stage | When (from on-chain dispute lock) | What happens |
+|---|---|---|
+| 1. Evidence | 0–72 h (`evidence_closes_at`) | Both parties submit evidence. Either may concede at any time (D17) |
+| 2. Decision | by day 7 (`decision_due_at`) | The primary arbiter decides and records a written rationale, visible to both parties |
+| 3. Escalation 1 | day 7, still unresolved | Operations lead alerted; the admin may rotate in a backup arbiter (`set_arbiter`); parties are notified with a new date |
+| 4. Escalation 2 | day 14, still unresolved | Two-person review: with an arbiter multisig, two of three signers must approve the split |
+| 5. Long-stop | day N (proposed 90), still unresolved | **Only if a fallback option below is approved.** Otherwise funds remain until the arbiter acts |
+
+**Fallback options for decision** (the chosen one applies only to escrows funded on a contract deployment that implements it, because the contract is immutable):
+
+| Option | Rule at long-stop | Pros | Cons |
+|---|---|---|---|
+| F-A *(MVP default, nothing implemented)* | No automatic settlement | No party is disadvantaged by UniFix's failure | Locked funds if admin and arbiter keys are both lost |
+| F-B | 50/50 split | Neutral, simple, easy to explain | Rough justice for both parties |
+| F-C | Stage-based: if completion was submitted on-chain before the dispute, 50/50; otherwise a refund minus a declared, pre-agreed call-out fee | Uses on-chain facts | More complex; the call-out fee must be in the agreement |
+| F-D | Mutual-settlement only: add `settle_mutual(escrow_id, professional_amount)`, which needs **both** parties' signatures, as a voluntary alternative to the arbiter | Fully voluntary, fits D17 | Not a fallback on its own: both parties must cooperate |
+
+**Recommendation:**
+
+- Keep **F-A** for the testnet MVP.
+- Add **F-D** (a voluntary mutual split, which extends the approved concessions) if you approve it before Issue 5's contract is deployed.
+- Choose between F-B and F-C before any real-value or mainnet use.
+- Whichever is chosen, its identifier (`dispute_policy`) is shown to both parties at quote acceptance and funding, and bound into both hashes (§6).
 
 ## 5. Contract interface (`backend/contracts/escrow`)
 
@@ -148,14 +194,14 @@ One deployment holds many escrows, keyed by `escrow_id: BytesN<32>`. One token (
     pub terms_hash: BytesN<32>,               // SHA-256 of the escrow-terms document (§6)
     pub status: EscrowStatus,
     pub funded_at: u64, pub refund_after: u64,
-    pub review_window: u64, pub arbitration_window: u64,
-    pub review_deadline: Option<u64>, pub dispute_deadline: Option<u64>,
+    pub review_window: u64,
+    pub review_deadline: Option<u64>, pub disputed_at: Option<u64>,
     pub evidence_hash: Option<BytesN<32>>, pub disputed_by: Option<Address>,
     pub professional_payout: i128, pub customer_refund: i128,
     pub settled_by: Option<SettledBy>,
 }
 
-fn __constructor(env, admin, arbiter, operator, token, review_window: u64, arbitration_window: u64);
+fn __constructor(env, admin, arbiter, operator, token, review_window: u64);
 fn fund(env, escrow_id, customer, professional, amount: i128, terms_hash, refund_after: u64) -> Result<(), Error>; // customer + operator auth
 fn submit_completion(env, escrow_id, evidence_hash: BytesN<32>) -> Result<(), Error>;                         // professional auth
 fn release(env, escrow_id) -> Result<(), Error>;            // customer auth; Funded | CompletionSubmitted | Disputed
@@ -163,7 +209,7 @@ fn refund(env, escrow_id) -> Result<(), Error>;             // professional auth
 fn extend(env, escrow_id, new_refund_after: u64) -> Result<(), Error>; // customer auth; Funded; later and ≤ funded_at + 180d
 fn open_dispute(env, escrow_id, caller: Address) -> Result<(), Error>; // caller ∈ {customer, professional}, auth; before the current deadline
 fn resolve(env, escrow_id, professional_amount: i128) -> Result<(), Error>; // arbiter auth; Disputed; 0 ≤ x ≤ amount
-fn finalize_expired(env, escrow_id) -> Result<(), Error>;   // no auth; fails NotExpired unless a deadline passed
+fn finalize_expired(env, escrow_id) -> Result<(), Error>;   // no auth; Funded/CompletionSubmitted only; NotExpired before the deadline; Disputed → InvalidState
 fn get_escrow(env, escrow_id) -> Result<Escrow, Error>;
 fn config(env) -> Config;
 fn set_arbiter(env, a: Address) -> Result<(), Error>;   // admin auth
@@ -190,7 +236,7 @@ fn set_admin(env, a: Address) -> Result<(), Error>;     // admin auth
 - I3: terminal states are final.
 - I4: `resolve` is valid only in `Disputed`.
 - I5: in `Disputed`, the customer can only move funds to the professional and the professional only to the customer.
-- I6: no escrow stays non-terminal after `max(refund_after, review_deadline, dispute_deadline)` once `finalize_expired` is called.
+- I6: no *undisputed* escrow stays non-terminal after its deadline once `finalize_expired` is called, and `finalize_expired` never changes a `Disputed` escrow.
 
 ## 6. Binding escrow to the accepted agreement
 
@@ -211,23 +257,24 @@ fn set_admin(env, a: Address) -> Result<(), Error>;     // admin auth
   "conversation_id": "…", "service_request_id": null, "customer_id": "…", "professional_id": "…",
   "title": "…", "description": "…", "labour_minor": 2500000, "materials_minor": 1000000, "total_minor": 3500000,
   "currency": "NGN", "completion_date": "2026-11-20", "service_method": "PRO_TO_CUSTOMER",
-  "payment_terms": "…", "milestones": [{"title": "…", "percent": 100}], "accepted_at": "2026-11-17T10:30:00Z" }
+  "payment_terms": "…", "milestones": [{"title": "…", "percent": 100}], "dispute_policy": "unifix.dispute-policy.v1",
+  "accepted_at": "2026-11-17T10:30:00Z" }
 
 // 2. escrow terms (written at escrow preparation) → passed to fund() as terms_hash
 { "schema": "unifix.escrow-terms.v1", "agreement_hash": "<hex>", "booking_id": "…", "escrow_id": "<hex>",
   "network_passphrase": "Test SDF Network ; September 2015", "escrow_contract_id": "C…",
   "asset": {"code": "USDC", "issuer": "G…", "sac_contract_id": "C…", "decimals": 7},
   "asset_amount": "212121213", "fiat": {"amount_minor": 3500000, "currency": "NGN"},
-  "fx": {"rate": "1650.00000000", "base": "USDC", "quote": "NGN", "source": "CONFIGURED_TESTNET", "locked_at": "…"},
+  "fx": {"rate": "1650.00000000", "base": "USDC", "quote": "NGN", "source": "DEMO_FIXED_RATE", "is_demo_rate": true, "locked_at": "…"},
   "customer_wallet": "G…", "professional_wallet": "G…",
-  "refund_after": 1764000000, "review_window": 259200, "arbitration_window": 2592000 }
+  "refund_after": 1764000000, "review_window": 259200, "dispute_policy": "unifix.dispute-policy.v1" }
 ```
 
 **Binding chain:** quote (immutable) → agreement JSON → `agreement_hash` → escrow-terms JSON (which includes `agreement_hash`, the token amount, wallets and deadlines) → `terms_hash` → stored on-chain by `fund`, which the operator co-signs.
 
 **Verification at confirmation (Issue 6):** the reconciler reads `get_escrow` and requires the following, or the booking is not funded and the escrow is flagged `FAILED_VERIFICATION`:
 
-- on-chain `customer`, `professional`, `amount`, `refund_after`, `review_window` and `arbitration_window` equal the escrow row;
+- on-chain `customer`, `professional`, `amount`, `refund_after` and `review_window` equal the escrow row;
 - on-chain `terms_hash` equals SHA-256(JCS(stored escrow-terms document));
 - that document's `agreement_hash` equals the agreement row's hash;
 - the agreement row's hash equals SHA-256(JCS(agreement document)).
@@ -272,7 +319,11 @@ asset_amount = ceil( amount_minor × 10^asset.decimals / (rate × 10^currency_ex
 
 - Rounding is **up**, so the professional is never underpaid by rounding.
 - Computed with Python `Decimal` at sufficient precision, then converted to `int`. A unit test with boundary vectors checks it.
-- Testnet rate source is `CONFIGURED_TESTNET` (env `FX_RATE_USDC_NGN`). A production FX source is a separate decision.
+- **Demo rate (D14, approved).** On testnet the rate is a fixed configured value (`FX_DEMO_RATE_USDC_NGN`).
+  - It is labelled `source = DEMO_FIXED_RATE` and `is_demo_rate = true`. Both values are part of the escrow-terms hash, every API response that carries a converted amount, and every receipt.
+  - The frontend must show **"Demo rate — testnet only"** wherever it shows the rate or a converted amount.
+  - The service refuses to start with a demo rate on any network other than testnet.
+  - A production FX source is a separate, future decision.
 
 ### 8.1 Verified testnet asset configuration (checked 2026-11-17)
 
@@ -311,7 +362,7 @@ asset_amount = ceil( amount_minor × 10^asset.decimals / (rate × 10^currency_ex
 | Resolve | arbiter (admin) | `POST /disputes/{id}/resolve` ×2 | `COMPLETED` / `REFUNDED` / `RESOLVED` |
 | Expiry | keeper (operator account as fee payer) or anyone | internal | `REFUNDED` / `COMPLETED` |
 
-**Keeper.** Part of the reconciler loop. When a deadline has passed, it submits `finalize_expired` with the operator account as source and fee payer. It can only trigger outcomes the contract has already fixed. Policy (D16b): it auto-finalizes all three timeout types, 15 minutes after maturity.
+**Keeper.** Part of the reconciler loop. When a deadline has passed, it submits `finalize_expired` with the operator account as source and fee payer. It can only trigger outcomes the contract has already fixed. Policy (D16b): it auto-finalizes both **undisputed** timeout types (refund after `refund_after`; auto-release after `review_deadline`) 15 minutes after maturity. It never touches disputed escrows.
 
 **Failure handling:**
 
@@ -378,14 +429,8 @@ Listed for Victor in [API_CONTRACT.md §13](API_CONTRACT.md#13-frontend-integrat
 
 ## 12. Decisions (see DEVELOPMENT_PLAN §5)
 
-- D11 arbiter custody (human-held wallet)
-- D12 operator co-signature on `fund`
-- D13 asset (Circle testnet USDC, verified)
-- D14 fixed testnet FX rate
-- D15 no fee
-- D16a dispute-timeout fallback (refund to customer)
-- D16b keeper auto-finalizes
-- D16c default windows (3-day service grace, 72 h review, 30-day arbitration)
-- D17 concessions allowed during a dispute
+- **Approved:** D14 (fixed testnet rate, labelled as a demo rate); D17 (voluntary concessions with wallet authorization).
+- **Rejected:** D16a (automatic full refund on arbiter inaction). Replaced by proposal **P1** (§4.5), pending approval, with nothing implemented.
+- **Open, with recommendations:** D11 arbiter custody (human-held wallet; multisig before real value); D12 operator co-signature on `fund`; D13 asset (Circle testnet USDC, verified); D15 no fee; D16b keeper auto-finalizes undisputed timeouts; D16c windows (3-day service grace, 72 h review); P1 dispute fallback (F-A for the MVP, F-D optional, F-B or F-C before real value).
 
-Post-MVP: mutual two-signature partial settlement; multisig admin and arbiter; live FX.
+Post-MVP: multisig admin and arbiter; live FX.
