@@ -89,3 +89,87 @@ async def refresh_with(client: httpx.AsyncClient, cookie: str) -> httpx.Response
     return await client.post(
         f"{API}/auth/refresh", headers={**COOKIE_HEADERS, "Cookie": f"__Secure-unifix_rt={cookie}"}
     )
+
+
+# ---------------------------------------------------------------- Issue 2 helpers
+
+
+def image_bytes(fmt: str = "PNG", size: tuple[int, int] = (64, 48), *, exif_make: str | None = None) -> bytes:
+    import io
+
+    from PIL import Image
+
+    image = Image.new("RGB", size, (200, 30, 60))
+    output = io.BytesIO()
+    if exif_make is not None:
+        exif = Image.Exif()
+        exif[0x010F] = exif_make  # Make
+        exif[0x8825] = {1: "N", 2: (6.0, 30.0, 52.0), 3: "E", 4: (3.0, 23.0, 0.0)}  # GPS IFD
+        image.save(output, format=fmt, exif=exif)
+    else:
+        image.save(output, format=fmt)
+    return output.getvalue()
+
+
+PDF_BYTES = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+
+
+async def upload(
+    client: httpx.AsyncClient,
+    account: Account,
+    purpose: str,
+    data: bytes | None = None,
+    *,
+    filename: str = "photo.png",
+    content_type: str = "image/png",
+) -> httpx.Response:
+    return await client.post(
+        f"{API}/uploads",
+        files={"file": (filename, data if data is not None else image_bytes(), content_type)},
+        data={"purpose": purpose},
+        headers=account.headers,
+    )
+
+
+async def create_admin_account(client: httpx.AsyncClient, services: Any) -> Account:
+    from app.modules.users import service as users_service
+
+    email = f"admin-{uuid.uuid4().hex[:8]}@example.com"
+    async with services.session_factory() as session:
+        await users_service.create_admin(session, services, email=email, name="Ops Admin", password=PASSWORD)
+    response = await login(client, email)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    return Account(
+        id=uuid.UUID(data["user"]["id"]), email=email, access_token=data["access_token"], refresh_cookie=""
+    )
+
+
+def professional_payload(**overrides: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "category_slug": "phone-repair",
+        "headline": "Phone screens fixed same day",
+        "bio": "Five years repairing iPhones and Androids near campus.",
+        "city": "Lagos",
+        "area": "Akoka",
+        "country": "NG",
+        "coverage": ["Akoka", "Yaba"],
+        "years_experience": 5,
+        "starting_price_minor": 1_500_000,
+        "currency": "NGN",
+        "availability": "TODAY",
+        "skills": ["iPhone screens", "battery replacement"],
+        "languages": ["English", "Yoruba"],
+    }
+    payload.update(overrides)
+    return payload
+
+
+async def register_professional(
+    client: httpx.AsyncClient, *, name: str = "Tunde Bakare", **profile: Any
+) -> tuple[Account, str]:
+    account = await register(
+        client, role="PROFESSIONAL", name=name, professional=professional_payload(**profile)
+    )
+    me = (await client.get(f"{API}/auth/me", headers=account.headers)).json()
+    return account, me["professional_id"]

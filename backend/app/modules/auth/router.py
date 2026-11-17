@@ -5,8 +5,10 @@ from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CallerDep, CsrfDep, ServicesDep, SessionDep
+from app.api.presenters import user_out
 from app.core.container import Services
 from app.core.email import deliver
 from app.core.errors import Forbidden, Unauthorized, error_responses
@@ -30,13 +32,16 @@ from app.modules.auth.schemas import (
 )
 from app.modules.auth.service import AuthResult, PendingEmail
 from app.modules.auth.sessions import ip_hint
+from app.modules.professionals import service as professionals
 from app.modules.users.schemas import UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 _bearer = HTTPBearer(auto_error=False)
 
 
-def _auth_response(response: Response, services: Services, result: AuthResult) -> AuthResponse:
+async def _auth_response(
+    response: Response, session: AsyncSession, services: Services, result: AuthResult
+) -> AuthResponse:
     set_refresh_cookie(
         response,
         services.settings,
@@ -45,7 +50,9 @@ def _auth_response(response: Response, services: Services, result: AuthResult) -
         now=services.clock.now(),
     )
     return AuthResponse(
-        access_token=result.access_token, expires_in=result.expires_in, user=UserOut.from_user(result.user)
+        access_token=result.access_token,
+        expires_in=result.expires_in,
+        user=await user_out(session, result.user),
     )
 
 
@@ -82,9 +89,10 @@ async def register(
     session: SessionDep,
     services: ServicesDep,
 ) -> AuthResponse:
-    result, verification_email = await service.register(session, services, data)
+    steps = [professionals.onboarding_step(data.professional)] if data.professional else []
+    result, verification_email = await service.register(session, services, data, extra_steps=steps)
     _send_later(tasks, services, verification_email)
-    return _auth_response(response, services, result)
+    return await _auth_response(response, session, services, result)
 
 
 @router.post(
@@ -96,7 +104,7 @@ async def register(
 async def login(
     data: LoginIn, response: Response, session: SessionDep, services: ServicesDep
 ) -> AuthResponse:
-    return _auth_response(response, services, await service.login(session, services, data))
+    return await _auth_response(response, session, services, await service.login(session, services, data))
 
 
 @router.post(
@@ -117,7 +125,7 @@ async def refresh(
     except Unauthorized as exc:
         exc.headers["Set-Cookie"] = clear_refresh_cookie_header(services.settings)
         raise
-    return _auth_response(response, services, result)
+    return await _auth_response(response, session, services, result)
 
 
 @router.post(
@@ -217,7 +225,7 @@ async def request_email_verification(
     summary="Confirm an email address with the token from the verification link",
 )
 async def confirm_email_verification(data: TokenIn, session: SessionDep, services: ServicesDep) -> UserOut:
-    return UserOut.from_user(await service.confirm_email_verification(session, services, data.token))
+    return await user_out(session, await service.confirm_email_verification(session, services, data.token))
 
 
 @router.post(

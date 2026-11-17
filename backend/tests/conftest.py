@@ -23,6 +23,7 @@ from app.core.clock import FrozenClock
 from app.core.config import Environment, Settings
 from app.core.container import Services, build_services
 from app.main import create_app
+from app.seed import seed
 from tests.support import ALLOWED_ORIGIN, API_BASE_URL, RecordingEmailSender
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -98,6 +99,8 @@ def make_settings(database_url: str, **overrides: object) -> Settings:
         "auth_ip_rate_limit_per_minute": 10_000,
         "email_action_rate_limit_per_hour": 10_000,
         "frontend_base_url": ALLOWED_ORIGIN,
+        "local_storage_dir": str(BACKEND_DIR / "var" / "test-uploads"),
+        "upload_rate_limit_per_hour": 10_000,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[arg-type]
@@ -128,6 +131,14 @@ async def services(
     async with built.engine.begin() as connection:
         await connection.execute(text(f"TRUNCATE {', '.join(table_names)} RESTART IDENTITY CASCADE"))
     await built.engine.dispose()
+
+
+@pytest.fixture
+async def seeded(services: Services) -> Services:
+    """Reference categories and campuses (app.seed), as a deployment would have."""
+    async with services.session_factory() as session:
+        await seed(session)
+    return services
 
 
 @pytest.fixture

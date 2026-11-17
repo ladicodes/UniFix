@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import EmailBackend, Environment, Settings
+from app.core.config import EmailBackend, Environment, Settings, StorageBackend
 
 BASE: dict[str, Any] = {
     "database_url": "postgresql+psycopg://u:p@localhost/db",
@@ -24,6 +24,8 @@ def production(**overrides: Any) -> dict[str, Any]:
         "cookie_secure": True,
         "email_backend": EmailBackend.SMTP,
         "smtp_host": "smtp.example.com",
+        "storage_backend": StorageBackend.S3,
+        "s3_bucket": "unifix-uploads",
         **overrides,
     }
 
@@ -67,6 +69,7 @@ def test_valid_production_configuration_is_accepted() -> None:
         ({"email_backend": EmailBackend.CONSOLE}, "EMAIL_BACKEND"),
         ({"jwt_secret": "change-me-" + "x" * 40}, "example value"),
         ({"password_hash_memory_kib": 1024}, "password hashing"),
+        ({"storage_backend": StorageBackend.LOCAL}, "STORAGE_BACKEND"),
     ],
 )
 def test_insecure_production_configuration_is_refused(overrides: dict[str, Any], message: str) -> None:

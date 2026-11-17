@@ -8,6 +8,7 @@ translate HTTP to calls and results to responses (including cookies).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -32,6 +33,7 @@ from app.modules.auth.schemas import (
     PasswordResetConfirmIn,
     RegisterIn,
 )
+from app.modules.campuses import service as campuses
 from app.modules.users import repository as users_repository
 from app.modules.users.models import AccountStatus, Role, User
 
@@ -128,13 +130,23 @@ def _verification_email(services: Services, user: User, raw_token: str) -> Pendi
     )
 
 
+RegistrationStep = Callable[[AsyncSession, User], Awaitable[None]]
+
+
 async def register(
-    session: AsyncSession, services: Services, data: RegisterIn
+    session: AsyncSession,
+    services: Services,
+    data: RegisterIn,
+    *,
+    extra_steps: Sequence[RegistrationStep] = (),
 ) -> tuple[AuthResult, PendingEmail]:
+    """Create the account. ``extra_steps`` (e.g. professional onboarding) run in the same transaction."""
     now = services.clock.now()
     await _limit_ip(services, now)
     if await users_repository.email_exists(session, data.email):
         raise Conflict("An account with this email already exists.", code="EMAIL_TAKEN")
+    if data.campus_id is not None:
+        await campuses.require_active(session, data.campus_id)
 
     user = User(
         id=uuid.uuid4(),
@@ -145,6 +157,7 @@ async def register(
         status=AccountStatus.ACTIVE.value,
         city=data.city,
         country=data.country.value,
+        campus_id=data.campus_id,
         last_login_at=now,
     )
     users_repository.add(session, user)
@@ -155,6 +168,8 @@ async def register(
         if violated_constraint(exc) == "uq_users_email":
             raise Conflict("An account with this email already exists.", code="EMAIL_TAKEN") from exc
         raise
+    for step in extra_steps:
+        await step(session, user)
     family = await sessions.start_family(session, user_id=user.id, settings=services.settings, now=now)
     _, result = _issue_result(session, services, user=user, family=family, now=now)
     raw_verify = _new_user_token(

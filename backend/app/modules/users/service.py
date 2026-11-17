@@ -13,6 +13,9 @@ from app.modules.audit.models import ActorType
 from app.modules.auth import sessions
 from app.modules.auth.context import AuthContext
 from app.modules.auth.models import RevocationReason
+from app.modules.campuses import service as campuses
+from app.modules.uploads import service as uploads
+from app.modules.uploads.models import FilePurpose
 from app.modules.users import repository
 from app.modules.users.models import AccountStatus, Role, User
 from app.modules.users.schemas import AdminStatusChangeIn, UpdateMeIn
@@ -31,6 +34,14 @@ async def update_me(session: AsyncSession, caller: AuthContext, data: UpdateMeIn
         user.city = changes["city"]
     if "phone" in changes:
         user.phone = changes["phone"]
+    if "campus_id" in changes:
+        if changes["campus_id"] is not None:
+            await campuses.require_active(session, changes["campus_id"])
+        user.campus_id = changes["campus_id"]
+    if "avatar_file_id" in changes:
+        if changes["avatar_file_id"] is not None:
+            await uploads.require_owned(session, caller, [changes["avatar_file_id"]], FilePurpose.AVATAR)
+        user.avatar_file_id = changes["avatar_file_id"]
     try:
         await session.commit()
     except IntegrityError as exc:  # concurrent update claimed the same phone

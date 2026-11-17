@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import EmailStr, Field, StringConstraints, field_validator
+from pydantic import EmailStr, Field, StringConstraints, field_validator, model_validator
 
 from app.core.schemas import APIModel, ResponseModel
+from app.modules.professionals.schemas import ProfessionalCreateIn
 from app.modules.users.models import Country, Role
 from app.modules.users.schemas import City, FullName, UserOut
 
@@ -27,8 +28,18 @@ class RegisterIn(APIModel):
     role: Literal[Role.CUSTOMER, Role.PROFESSIONAL]
     city: City | None = None
     country: Country
+    campus_id: uuid.UUID | None = Field(default=None, description="Optional self-declared campus")
+    professional: ProfessionalCreateIn | None = Field(
+        default=None, description="Professional onboarding; creates the profile in the same transaction"
+    )
 
     _email = field_validator("email")(_normalise_email)
+
+    @model_validator(mode="after")
+    def _professional_only_for_professionals(self) -> Self:
+        if self.professional is not None and Role(self.role) is not Role.PROFESSIONAL:
+            raise ValueError("professional details can only be sent with role PROFESSIONAL")
+        return self
 
 
 class LoginIn(APIModel):
