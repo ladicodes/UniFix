@@ -254,7 +254,7 @@ Constraints and indexes:
 - `UNIQUE (service_request_id) WHERE service_request_id IS NOT NULL AND status <> 'CANCELLED'`.
 - Indexes `(customer_id, status)`, `(professional_id, status)`.
 
-**booking_events** (append-only): the timeline.
+**booking_events** (append-only): the timeline. *Implemented with a `seq` identity column for deterministic ordering (events can share a timestamp).*
 `id, booking_id FK CASCADE, from_status NULL, to_status NULL, label, actor_type (customer|professional|system|chain|admin), actor_user_id NULL, data jsonb, created_at`. Index `(booking_id, created_at)`.
 
 **idempotency_keys**

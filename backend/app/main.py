@@ -15,7 +15,9 @@ from app.core.container import Services, build_services
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.modules.chat import service as chat_service
 from app.modules.chat.hub import ConversationHub
+from app.modules.quotes import service as quotes_service
 
 CORS_ALLOWED_HEADERS = [
     "Authorization",
@@ -48,6 +50,7 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     )
     app.state.services = services
     app.state.chat_hub = ConversationHub()
+    chat_service.register_quotes_lookup(quotes_service.conversation_quotes_hook(services))
     register_error_handlers(app)
 
     # Order: CORS must wrap everything so even error responses carry CORS headers for allowed origins.
