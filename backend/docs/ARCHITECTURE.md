@@ -1,6 +1,15 @@
 # UniFix Backend — Architecture
 
-Status: **Planning baseline (2026-11-17). Nothing described here is implemented yet.**
+Status: **Planning baseline, revision 2 (2026-11-17). Nothing described here is implemented yet.**
+
+Revision 2:
+
+- HttpOnly refresh cookies with CSRF defences (§6).
+- snake_case API (§7).
+- Single-use WebSocket tickets (§9).
+- On-chain completion and deadline-based escrow policy (§8).
+- Integer fiat and token units (§7).
+- Exactly-once reconciler across restarts and instances (§10).
 Owner: Ladipo Samuel (backend). Consumer: Victor (frontend, `frontend/`).
 
 Related documents:
@@ -40,7 +49,11 @@ The frontend README says routes come from "PRD section 10". Section 10 of the Fi
 
 - **Modular monolith.** One deployable, one database, clear module boundaries. No Redis, Celery, Kafka or Kubernetes. See §9 for when that would change.
 - **The chain is the source of truth for money.** The database mirrors on-chain escrow state through a reconciler. No database write can move funds.
-- **The backend never holds a key that can move customer funds.** It holds one *operator* key. That key can only co-sign the creation of an escrow, to attest that its terms match the accepted agreement. See [STELLAR_ESCROW_DESIGN.md §3](STELLAR_ESCROW_DESIGN.md#3-trust-model).
+- **The backend never holds a key that can choose where customer funds go.** It holds one *operator* key, which can do two things:
+  - co-sign the creation of an escrow, to attest that its terms match the accepted agreement;
+  - pay the fee for triggering a deadline that has already passed, where the contract fixes the outcome.
+
+  See [STELLAR_ESCROW_DESIGN.md §3](STELLAR_ESCROW_DESIGN.md#3-trust-model).
 
 ## 3. Technology choices
 
@@ -58,6 +71,7 @@ Versions were checked on PyPI and crates.io on 2026-11-17. They are pinned in `u
 | DB | PostgreSQL 16 | 16.15 installed (Homebrew) | Same major version in dev, CI and prod |
 | Passwords | argon2-cffi (Argon2id) | 25.1 | Current OWASP recommendation |
 | Tokens | PyJWT (HS256 access tokens) | 2.15.x | Small, well-maintained |
+| Canonical JSON | `rfc8785` (RFC 8785 JCS); maintenance re-checked at Issue 3 | — | Deterministic agreement and escrow-terms hashing. Fallback is a restricted canonicaliser (ints, strings, arrays, objects only) proven equal on the RFC test vectors |
 | Stellar | stellar-sdk (Python) | 17.0.x | Soroban RPC client, XDR, auth-entry signing, SEP-53 message verification |
 | Contracts | Rust + soroban-sdk | rustc 1.98 / soroban-sdk 29.0.x | Official Soroban SDK |
 | Images | Pillow | — | Decode, verify and re-encode uploads, strip EXIF/GPS |
@@ -85,7 +99,7 @@ UniFix/
     │   │   ├── db.py               # engine, async session factory, Base, naming convention
     │   │   ├── security.py         # hashing, JWT encode/decode, token hashing
     │   │   ├── errors.py           # AppError hierarchy + exception handlers
-    │   │   ├── schemas.py          # APIModel base (camelCase out, both cases in)
+    │   │   ├── schemas.py          # APIModel base (snake_case, extra="forbid")
     │   │   ├── pagination.py       # limit/offset + cursor helpers, headers
     │   │   ├── money.py            # minor-unit helpers, currency enum
     │   │   ├── logging.py          # JSON logs, request IDs, redaction
@@ -162,12 +176,21 @@ Each module has the same files, and only the ones it needs:
 
 **Tokens**
 
-| Token | Format | Lifetime | Storage |
-|---|---|---|---|
-| Access | JWT HS256: `sub` (user id), `sid` (session id), `role`, `iat`, `exp`, `jti` | 15 min | Client memory/localStorage (current frontend) |
-| Refresh | 256-bit random, opaque | 30 days, rotated on every use | Server stores only SHA-256 hash in `auth_sessions` |
+| Token | Format | Lifetime | Client storage | Server storage |
+|---|---|---|---|---|
+| Access | JWT HS256: `sub`, `sid` (session family), `role`, `iat`, `exp`, `jti` | 15 min | **JS memory only**, sent as `Authorization: Bearer` | — (stateless, but `sid` is checked per request) |
+| Refresh | 256-bit random, opaque | 14 days idle / 30 days absolute; rotated on every use | **HttpOnly cookie** `__Secure-unifix_rt`, `Secure`, `SameSite=Strict`, `Path=/api/v1/auth`, host-only | SHA-256 hash in `auth_sessions` |
 
-- **Rotation with reuse detection.** Every refresh issues a new refresh token and marks the old one used. Presenting a used token revokes the entire session family. This is how a stolen token is detected.
+- **Browser sessions use the HttpOnly cookie for refresh only.** The cookie is never readable by JavaScript and is only sent to `/api/v1/auth/*`. The refresh token never appears in a response body. On app load, the frontend calls `/auth/refresh` to obtain an in-memory access token.
+- **CSRF defences** apply only to routes that read or set the cookie (`/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout`). Every other route requires the `Authorization` header, which browsers never attach on their own. The defences:
+  1. `Origin` is required and must be in the allowlist.
+  2. The custom header `X-CSRF-Protection: 1` is required. It forces a CORS preflight, which only allowlisted origins pass.
+  3. The cookie is `SameSite=Strict`.
+- **CORS:** an explicit origin list and `allow_credentials=true`. A wildcard origin is a startup error. `X-CSRF-Protection` is in the allowed headers.
+- **Deployment constraint:** the frontend and API must be same-site (`app.<domain>` + `api.<domain>`, or a Next.js rewrite proxy). `*.vercel.app` previews are cross-site.
+- **Rotation with reuse detection.** Every refresh issues a new cookie and marks the old token used. Presenting a used token revokes the entire session family. This is how a stolen token is detected.
+- **Multi-tab race grace:** a token rotated less than 30 s ago, whose successor is unused, returns `409 REFRESH_RACE` and is not treated as reuse. The client retries with the cookie jar's newer cookie, and refreshes are serialised across tabs with the Web Locks API.
+- Full frontend flow: API_CONTRACT §4.
 - **Immediate revocation.** `current_user` loads the session row by `sid`, so logout, suspension and password change take effect at once. This costs one primary-key lookup per request, which is acceptable at MVP scale.
 - **Passwords.** Argon2id with library defaults (tuned at implementation). Length 10–128. Rehash on login if the parameters change. Failed logins are counted per account and per IP in the database. Five failures cause a 15-minute lockout, and the message does not reveal whether the account exists.
 
@@ -180,10 +203,14 @@ Each module has the same files, and only the ones it needs:
 ## 7. API conventions (summary — full detail in API_CONTRACT.md)
 
 - Base path `/api/v1`. The frontend sets `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1`, so its existing relative paths keep working.
-- JSON responses are **camelCase**. Request bodies accept camelCase **or** snake_case, because the current frontend sends both (`conversationId` and `professional_id`).
-- Errors: `{"detail": "...", "code": "MACHINE_CODE", "requestId": "...", "errors": [...]}`. `detail` is always a string, which the frontend already reads.
-- Lists return a JSON array, matching the current frontend. Pagination uses `limit`/`offset` (or `before` cursors for messages), and the totals come back in `X-Total-Count` and `X-Next-Offset` headers.
-- Money in requests and responses is a decimal number in **major units** (naira). Storage is integer **minor units** (kobo). On-chain token amounts are also returned as an exact string, `amountUnits`.
+- **snake_case for every field and query parameter.** Pydantic field names are the wire names: no alias generators, and `extra="forbid"`, so a misspelled or camelCase field returns 422 instead of being silently dropped. Enum values are `UPPER_SNAKE_CASE`. The frontend's required changes are in API_CONTRACT §13.
+- Errors: `{"detail": "...", "code": "MACHINE_CODE", "request_id": "...", "errors": [...]}`. `detail` is always a string.
+- Lists return a JSON array. Pagination uses `limit`/`offset` (or `before` cursors for messages), with `X-Total-Count` and `X-Next-Offset` headers.
+- **Money is never a float.**
+  - Fiat: integer minor units plus an ISO 4217 code (`total_minor`, `currency`).
+  - Token: an integer base-unit string plus an explicit asset object (`asset_amount`, `asset {code, issuer, sac_contract_id, decimals}`).
+  - FX rates: decimal strings.
+  - Conversion happens in exactly one place, `payments.fx`, using integer math and rounding up (STELLAR_ESCROW_DESIGN §8).
 - Every state-changing financial route honours `Idempotency-Key`.
 
 ## 8. Domain workflows
@@ -195,71 +222,103 @@ There are two entry points, and both end in a conversation:
 - **Direct:** customer opens a conversation with a professional, using `POST /conversations`.
 - **Open request:** customer posts a service request to a campus and category feed. A professional responds, which opens or reuses a conversation linked to that request.
 
-Quotes live inside a conversation and are versioned. A new quote supersedes the previous pending one. Accepting a quote is one transaction that:
+Quotes live inside a conversation and are versioned. A new quote supersedes the previous pending one. **Quotes are never edited.** No endpoint edits a quote, and a DB trigger blocks changes to term columns and all deletes. Accepting a quote is one transaction that:
 
 1. locks the quote, plus the service request if there is one;
-2. checks that the caller is the customer, the quote is `PENDING`, and no active booking exists for that conversation or request;
-3. writes an immutable **agreement**: the canonical JSON of the terms and both parties, with SHA-256 → `agreementHash`;
-4. creates the booking in `PENDING_PAYMENT`;
+2. checks that the caller is the customer, the quote is `PENDING` and unexpired, and no active booking exists for that conversation or request;
+3. generates the booking ID and writes the immutable **agreement**: the RFC 8785 canonical JSON of every term, both parties and the booking ID, with SHA-256 → `agreement_hash`;
+4. creates the booking in `PENDING_PAYMENT`, with its amount copied from the agreement;
 5. marks the other pending quotes on the request `REJECTED`;
 6. writes timeline and audit entries, and posts a system message to the chat.
+
+The escrow is later bound to this agreement through the escrow-terms hash stored on-chain. That binding is specified in STELLAR_ESCROW_DESIGN §6.
 
 ### 8.2 Booking state machine
 
 ```
-                      ┌──────────── cancel (either party, no funds) ───────────┐
-                      │                                                        ▼
- [quote accepted] → PENDING_PAYMENT ──fund confirmed on-chain──► FUNDED      CANCELLED
-                                                                 │  │
-                                     professional starts ◄───────┘  └─ professional refunds ─► REFUNDED
-                                                │
-                                           IN_PROGRESS ──professional submits evidence──► COMPLETION_SUBMITTED
-                                                                                                │
-                                                     customer approves + release confirmed ◄────┘
-                                                                     ▼
-                                                                COMPLETED  (terminal, review allowed)
-
- FUNDED | IN_PROGRESS | COMPLETION_SUBMITTED ──dispute lock confirmed on-chain──► DISPUTED
- DISPUTED ──arbiter resolution confirmed──► COMPLETED (100% to pro) | REFUNDED (100% to customer) | RESOLVED (split)
+ [quote accepted] → PENDING_PAYMENT ──cancel (either party) / 7-day expiry──► CANCELLED
+                          │
+                          └─ fund confirmed on-chain ─► FUNDED ──professional starts──► IN_PROGRESS
+                                                         │                                  │
+                                                         │   professional's submit_completion confirmed
+                                                         │                                  ▼
+                                                         │                       COMPLETION_SUBMITTED
+                                                         │                                  │
+                                                         │      customer release confirmed, or review_deadline
+                                                         │      passed and finalize_expired confirmed
+                                                         │                                  ▼
+                                                         │                              COMPLETED
+   FUNDED | IN_PROGRESS: professional refund, or refund_after passed + finalize_expired ─► REFUNDED
+   COMPLETION_SUBMITTED: professional refund ─► REFUNDED
+   FUNDED | IN_PROGRESS | COMPLETION_SUBMITTED ── dispute lock confirmed ─► DISPUTED
+   DISPUTED ─► COMPLETED (arbiter 100% to pro, or customer concedes)
+             | REFUNDED  (arbiter 0%, professional concedes, or dispute_deadline fallback)
+             | RESOLVED  (arbiter split)
 ```
 
 | From | To | Actor | Guard |
 |---|---|---|---|
 | — | `PENDING_PAYMENT` | customer | accepts a `PENDING` quote; no active booking on that conversation or request |
-| `PENDING_PAYMENT` | `CANCELLED` | customer or professional | no escrow funding confirmed or pending |
-| `PENDING_PAYMENT` | `FUNDED` | system (reconciler) | `funded` event confirmed **and** on-chain escrow matches the agreement |
-| `FUNDED` | `IN_PROGRESS` | professional | — |
-| `FUNDED`/`IN_PROGRESS` | `REFUNDED` | system | professional's refund tx confirmed |
-| `IN_PROGRESS` | `COMPLETION_SUBMITTED` | professional | evidence has ≥1 photo or a note |
-| `COMPLETION_SUBMITTED` | `COMPLETED` | system | customer's release tx confirmed |
-| `FUNDED`/`IN_PROGRESS`/`COMPLETION_SUBMITTED` | `DISPUTED` | system | `disputed` event confirmed (the off-chain dispute record blocks release preparation immediately) |
-| `DISPUTED` | `COMPLETED`/`REFUNDED`/`RESOLVED` | system | arbiter `resolved` event confirmed |
+| `PENDING_PAYMENT` | `CANCELLED` | customer, professional or system (7-day expiry) | no funding transaction pending or confirmed |
+| `PENDING_PAYMENT` | `FUNDED` | reconciler | `funded` event confirmed **and** on-chain escrow matches the escrow terms (STELLAR_ESCROW_DESIGN §6) |
+| `FUNDED` | `IN_PROGRESS` | professional | — (off-chain only) |
+| `FUNDED`/`IN_PROGRESS` | `COMPLETION_SUBMITTED` | reconciler | `completion_submitted` event confirmed; evidence recorded off-chain first, with `evidence_hash` on-chain |
+| `COMPLETION_SUBMITTED` | `COMPLETED` | reconciler | `released` event (customer, or `Timeout` auto-release) |
+| `FUNDED`/`IN_PROGRESS`/`COMPLETION_SUBMITTED` | `REFUNDED` | reconciler | `refunded` event (professional refund, or `Timeout` after `refund_after` in Funded) |
+| `FUNDED`/`IN_PROGRESS`/`COMPLETION_SUBMITTED` | `DISPUTED` | reconciler | `disputed` event. The off-chain dispute record blocks release and refund **preparation** at once (concessions excepted) |
+| `DISPUTED` | `COMPLETED`/`REFUNDED`/`RESOLVED` | reconciler | `released` / `refunded` / `resolved` event: arbiter, concession, or timeout fallback |
 
 Rules:
 
-- Every transition goes through **one function**, `bookings.service.transition(booking, to, actor, reason)`. That function checks the table above, writes `booking_events`, and writes an audit entry.
-- The financial transitions are **only** made by the reconciler, from confirmed chain data. No API lets a user set them.
+- Every transition goes through **one function**, `bookings.service.transition(booking, to, actor, reason)`. It checks the table above and writes `booking_events` plus an audit entry.
+- Every financial transition is made **only** by the reconciler, from confirmed and verified chain data. No route can set one.
+- Cancellation, refund, dispute and arbitration policies, with their deadlines, are specified in STELLAR_ESCROW_DESIGN §4. Every non-terminal state has a deadline-based exit, so funds are never permanently locked.
 - FixMe's `TECHNICIAN_ACCEPTED` state is dropped. A professional accepts the job by issuing the quote.
 
 ### 8.3 Escrow state (mirrors the contract)
 
-`CREATED` (off-chain, prepared) → `FUNDED` → `RELEASED` | `REFUNDED` | `DISPUTED` → `RELEASED` | `REFUNDED` | `RESOLVED`.
+`CREATED` (off-chain, prepared) → `FUNDED` → `COMPLETION_SUBMITTED` → `RELEASED` | `REFUNDED` | `DISPUTED` → `RELEASED` | `REFUNDED` | `RESOLVED`.
 
 The reconciliation status is tracked separately: `AWAITING_SIGNATURE` → `PENDING_CONFIRMATION` → `CONFIRMED` | `FAILED`. Full design: [STELLAR_ESCROW_DESIGN.md](STELLAR_ESCROW_DESIGN.md).
 
 ## 9. Real-time (WebSockets)
 
-- `WS /api/v1/ws/conversations/{id}?token=<access JWT>` is the route the frontend already uses. The server validates the token and conversation membership **before** `accept()`. It closes with `4401` for an invalid token and `4403`/`4404` for no access. It closes with `4401` again when the token expires, and the client reconnects with a fresh token.
+- **Authentication by single-use ticket. No auth token ever appears in a WebSocket URL.**
+  1. The client calls `POST /api/v1/ws/tickets {scope, conversation_id}` with its Bearer token.
+  2. The server checks membership and creates a ticket:
+     - 256-bit random, stored as SHA-256 in `ws_tickets`;
+     - **30-second** TTL and **single use**;
+     - bound to the user, the session family, the scope and the conversation.
+  3. The client connects to `WS /api/v1/ws/conversations/{id}?ticket=…`.
+  4. **Before `accept()`**, the server:
+     - checks `Origin` against the allowlist (blocks cross-site WebSocket hijacking);
+     - consumes the ticket with one atomic `UPDATE … SET used_at = now() WHERE token_hash = $1 AND used_at IS NULL AND expires_at > now() RETURNING …`;
+     - checks the scope matches the path;
+     - checks the session is not revoked and the user is `ACTIVE`;
+     - re-checks membership.
+  5. While connected, the server re-validates the session every 60 s and closes the connection when it is revoked. Connections are capped at 1 h (close `4000`), so the client reconnects with a new ticket.
+  6. A ticket left in a log is worthless once used or after 30 s, and query strings are redacted from access logs anyway.
+  7. Tickets live in PostgreSQL, so they work across instances.
+- Rejected alternatives:
+  - an access JWT in the query string (replayable for 15 min);
+  - a bearer token in `Sec-WebSocket-Protocol` (misuses the header, and it still gets logged by proxies);
+  - cookie auth on the socket (the refresh cookie is path-restricted to `/auth`, and a cookie-authenticated socket needs the same Origin defences anyway).
 - **Message writes go through REST** (`POST /conversations/{id}/messages`). The service persists the message, commits, and then publishes `message.created` to the hub. Over the socket, the client sends only ephemeral events: `typing`, `read`, `call.*` signaling and `ping`.
 - **Hub:** an in-process `dict[conversation_id, set[WebSocket]]`, with bounded per-connection send queues so a slow client cannot block others. This supports **one API instance**, which is the MVP deployment. If we need more than one instance, the hub changes to fan out through PostgreSQL `LISTEN/NOTIFY`. That is a contained change inside `chat/hub.py`, with no new infrastructure.
-- Access tokens in query strings can leak through logs. Uvicorn access logs are configured to redact query strings. A short-lived single-use `ws ticket` is offered as a decision in DEVELOPMENT_PLAN.
 - Call signaling (`call.offer`, `call.answer`, `call.ice`, `call.end`) is relayed only to the other participant of an active call session. The backend does not handle media. STUN/TURN servers come from config, and **no TURN server is provided**, so calls may fail behind strict NATs.
 
 ## 10. Stellar integration (summary)
 
 - `stellar/` wraps Soroban RPC (simulate, prepare, send, getTransaction, getEvents, getLatestLedger) and Horizon (account existence, trustlines). It also holds the network passphrase check, operator auth-entry signing, and the "signed envelope equals prepared envelope" check.
-- `payments/` builds `fund`/`release`/`refund`/`open_dispute`/`resolve` transactions for the **user's wallet to sign**. It accepts the signed XDR, submits it, and runs the **reconciler**.
-- **Reconciler:** an asyncio task started in the app lifespan. It runs only while holding a PostgreSQL advisory lock, so only one runs even with several workers. Every few seconds it polls `getTransaction` for submitted transactions, and every ~30 s it scans contract events from a stored ledger cursor. That catches transactions submitted outside our API. `app.cli reconcile --once` does the same job for cron or manual recovery.
+- `payments/` builds the contract-call transactions for the **user's wallet to sign**: `fund`, `submit_completion`, `release`, `refund`, `extend`, `open_dispute`, `resolve`. It accepts the signed XDR, submits it, and runs the **reconciler** and **keeper**.
+- **Reconciler (exactly once):**
+  - Every chain effect, whether from our own transactions or the contract event scan, is ingested into `chain_events` under `UNIQUE (tx_hash, event_index)`.
+  - Each event is applied in one DB transaction that locks the event, escrow and booking rows, re-reads `get_escrow` from the chain, and writes every derived row behind its own unique key. The event cursor advances in the same transaction.
+  - A PostgreSQL session advisory lock, held on a dedicated non-pooled connection, picks one leader among all processes and instances. Correctness does **not** depend on the lock: overlapping leaders still apply each event once.
+  - After a restart, everything resumes from the DB.
+  - If the RPC's ~7-day event retention has been exceeded, a full `get_escrow` sweep runs (`app.cli reconcile --full`).
+  - Full specification: STELLAR_ESCROW_DESIGN §10.
+- **Keeper:** the leader submits the permissionless `finalize_expired` for escrows whose deadline has passed, using the operator account as fee payer. The contract fixes the outcome, so the keeper cannot choose a recipient or an amount.
 
 ## 11. Files and uploads
 
@@ -270,7 +329,7 @@ The reconciliation status is tracked separately: `AWAITING_SIGNATURE` → `PENDI
 
 ## 12. Observability and operations
 
-- JSON logs with request ID, user ID and route. A redaction filter removes `Authorization` headers, `token`, `password`, `signed_xdr` and secrets.
+- JSON logs with request ID, user ID and route. A redaction filter removes `Authorization` and `Cookie`/`Set-Cookie` headers, `ticket` and `token` query parameters, `password`, `signed_xdr` and secrets.
 - `GET /health` checks the process only. `GET /ready` checks the DB and that Soroban RPC is reachable.
 - `GET /api/v1/admin/ops/status` (Issue 8) reports: pending-transaction count, age of the oldest pending transaction, reconciler cursor ledger versus the latest ledger, and the last reconciler error.
 - An error-tracking provider such as Sentry is optional and needs approval. It is not wired by default.
@@ -281,7 +340,8 @@ The reconciliation status is tracked separately: `AWAITING_SIGNATURE` → `PENDI
 |---|---|---|
 | Unit | Pure functions: state machine table, money math, agreement hashing, XDR checks, policy functions | Every CI run |
 | Integration (PostgreSQL) | Every endpoint through `httpx.AsyncClient` against a real PG 16 database migrated by Alembic; each test isolated by a rolled-back outer transaction; factories for fixtures | Every CI run (PG service container) and locally (Homebrew PG) |
-| Concurrency | Parallel `accept quote`, parallel `submit funding`, parallel reconciler passes using separate connections: exactly one winner | Every CI run |
+| Concurrency | Parallel `accept quote`, parallel `submit funding`, two reconciler leaders forced to overlap, the same event ingested twice, a crash injected between apply steps: exactly one effect | Every CI run |
+| Auth transport | Cookie attributes per environment, CSRF rejection (missing or foreign `Origin`, missing `X-CSRF-Protection`), refresh rotation, reuse revocation, race grace, WS ticket single use, expiry and scope mismatch, WS `Origin` rejection | Every CI run |
 | Migrations | `alembic upgrade head` → `downgrade base` → `upgrade head` on an empty database | Every CI run |
 | Contract | Rust tests with `soroban-sdk` testutils and a real Stellar Asset Contract: every function, every auth failure, every invalid state transition, balance conservation | Every CI run (`cargo test`) |
 | Stellar adapter | Recorded RPC responses for parsing and error paths (unit level only, never presented as integration) | Every CI run |

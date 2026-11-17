@@ -1,12 +1,26 @@
 # UniFix — Database Design
 
-Status: **Planning baseline (2026-11-17). Not implemented.** PostgreSQL 16, SQLAlchemy 2.x, Alembic.
+Status: **Planning baseline, revision 2 (2026-11-17). Not implemented.** PostgreSQL 16, SQLAlchemy 2.x, Alembic.
+
+Revision 2 adds:
+
+- separate fiat and token unit columns;
+- quote term-immutability triggers;
+- canonical JSON storage for the agreement and escrow-terms documents;
+- `ws_tickets`, `chain_events` and `cancellation_requests`;
+- escrow deadlines;
+- refresh-cookie session fields.
 
 ## 1. Conventions
 
 - Primary keys are `uuid` (generated in Python, `uuid4`). They are exposed to clients as strings.
-- Timestamps are `timestamptz`, stored in UTC. Mutable tables have `created_at` and `updated_at`.
-- Money is `bigint` **minor units** (kobo/pesewas) with a `currency` column (`NGN`, `GHS`). On-chain token amounts are `numeric(39,0)` base units, which fits `i128`.
+- Timestamps are `timestamptz`, stored in UTC. Mutable tables have `created_at` and `updated_at`. On-chain deadlines are stored as `bigint` Unix seconds, exactly as the contract stores them.
+- **Fiat and token units are never mixed in one column.**
+  - **Fiat:** `<name>_minor bigint` + `currency text CHECK (currency IN ('NGN','GHS'))` (ISO 4217, exponent 2).
+  - **Token:** `<name>_units numeric(39,0)`, which fits `i128`, plus the asset identity in the same row (`asset_code`, `asset_issuer`, `asset_sac_contract_id`, `asset_decimals`).
+  - **XLM fees:** `fee_stroops numeric(39,0)`.
+  - **FX rates:** `numeric(24,8)`.
+  - No `float`/`real`/`double` column holds money.
 - Enums are PostgreSQL `text` columns with `CHECK` constraints, generated from Python `StrEnum`s. Adding a value is then a single migration with no type rewrite.
 - Every foreign key has an explicit `ON DELETE` rule. The default is `RESTRICT`. Users are never hard-deleted (deactivated instead), so financial history stays intact.
 - The constraint naming convention is set on `MetaData` (`pk_`, `fk_`, `uq_`, `ix_`, `ck_`), so Alembic autogenerate produces stable names.
@@ -18,7 +32,8 @@ Column lists below are the planned shape. Final names are fixed in each issue's 
 ## 2. Entity map
 
 ```
-users ─┬─ auth_sessions
+users ─┬─ auth_session_families ── auth_refresh_tokens
+       ├─ ws_tickets
        ├─ user_tokens (email verify / password reset)
        ├─ professional_profiles ─┬─ professional_categories ── service_categories (self-ref parent)
        │                         ├─ professional_campuses ──── campuses
@@ -34,7 +49,9 @@ service_requests ─┬─ service_request_media ── files
                                     ├─ call_sessions
                                     └─ quotes ── agreements ── bookings ─┬─ booking_events
                                                                          ├─ escrows ─┬─ chain_transactions
+                                                                         │           ├─ chain_events
                                                                          │           └─ ledger_entries
+                                                                         ├─ cancellation_requests
                                                                          ├─ completion_submissions ── completion_files ── files
                                                                          ├─ disputes ── dispute_evidence ── files
                                                                          ├─ reviews ── (reports)
@@ -69,10 +86,15 @@ audit_logs (append-only)   idempotency_keys   chain_sync_state   rate_limit_even
 
 Indexes: `(role, status)`.
 
-**auth_sessions**: one row per refresh token in a rotation chain.
-`id, user_id FK CASCADE, family_id uuid, refresh_token_hash char(64) UNIQUE, parent_id FK self NULL, created_at, expires_at, used_at NULL, revoked_at NULL, revoked_reason text NULL, user_agent text, ip inet`.
-Indexes: `(user_id) WHERE revoked_at IS NULL`, `(family_id)`.
-The access JWT `sid` refers to the **family**. Revoking a family sets `revoked_at` on all its rows.
+**auth_session_families**: one row per login (the browser session).
+`id (= JWT sid), user_id FK CASCADE, created_at, absolute_expires_at (created + 30d), revoked_at NULL, revoked_reason text NULL, user_agent text, ip inet`.
+Index: `(user_id) WHERE revoked_at IS NULL`.
+
+**auth_refresh_tokens**: one row per refresh token in the family's rotation chain.
+`id, family_id FK CASCADE, token_hash char(64) UNIQUE, parent_id FK self NULL, created_at, idle_expires_at (created + 14d, capped at the family's absolute expiry), rotated_at NULL, successor_id FK self NULL`.
+
+- Presenting a token with `rotated_at` set means reuse. If it was rotated less than 30 s ago and `successor` is unused, the server returns `409 REFRESH_RACE`. Otherwise it revokes the family.
+- The cookie carries the raw token. Only the hash is stored.
 
 **user_tokens**
 `id, user_id FK CASCADE, purpose (VERIFY_EMAIL|RESET_PASSWORD), token_hash char(64) UNIQUE, expires_at, used_at NULL, created_at`.
@@ -164,6 +186,13 @@ Used for access control, unread counts and read receipts.
 `id, reporter_id FK, target_type (MESSAGE|CONVERSATION|USER|REVIEW), target_id uuid, reason, details, status (OPEN|DISMISSED|ACTIONED), resolved_by NULL, resolved_at, created_at`.
 `UNIQUE (reporter_id, target_type, target_id)`. Reused by Issue 7 for reviews.
 
+**ws_tickets**
+`id, token_hash char(64) UNIQUE, user_id FK CASCADE, family_id FK auth_session_families CASCADE, scope (CONVERSATION|USER), conversation_id FK NULL, created_at, expires_at (created + 30 s), used_at NULL`.
+
+- `CHECK (scope <> 'CONVERSATION' OR conversation_id IS NOT NULL)`.
+- Consumed by a single conditional `UPDATE … RETURNING`.
+- Rows are pruned after 1 hour.
+
 ### Issue 3 — Requests, quotes, agreements, bookings
 
 **service_requests**
@@ -186,8 +215,18 @@ Index `(status, category_id, campus_id, created_at DESC)`.
 
 Constraint: `UNIQUE (conversation_id) WHERE status = 'PENDING'`, so a conversation has at most one live quote.
 
+**Quote immutability** (trigger `quotes_terms_immutable`):
+
+- `BEFORE UPDATE` raises if any column other than `status`, `responded_at` or `updated_at` changes.
+- It also raises if `OLD.status <> 'PENDING'`. A decided quote cannot change at all.
+- `BEFORE DELETE` always raises.
+- Revisions are new rows with `version + 1`, and the previous pending row becomes `SUPERSEDED`.
+
 **agreements** (append-only)
-`id, quote_id FK UNIQUE, customer_id, professional_id, terms jsonb (canonical, sorted keys), terms_hash char(64) UNIQUE, total_minor, currency, accepted_by FK, accepted_at`.
+`id, booking_id uuid UNIQUE, quote_id FK UNIQUE, customer_id, professional_id, canonical_json text NOT NULL, agreement_hash char(64) UNIQUE, total_minor, currency, accepted_by FK, accepted_at`.
+
+- `canonical_json` holds the **exact RFC 8785 bytes** that were hashed, stored as text rather than jsonb, because jsonb reorders keys.
+- `CHECK (agreement_hash = encode(sha256(convert_to(canonical_json, 'UTF8')), 'hex'))`. PostgreSQL itself refuses a hash that does not match the stored document.
 
 **bookings**
 
@@ -228,57 +267,76 @@ Constraints: `UNIQUE (network, address) WHERE revoked_at IS NULL`; `UNIQUE (user
 **wallet_challenges**
 `id, user_id FK, address, nonce char(32) UNIQUE, message text, expires_at, used_at NULL, created_at`.
 
-### Issue 6 — Escrow, chain transactions, ledger, completion, receipts
+### Issue 6 — Escrow, chain transactions, events, ledger, completion, cancellation, receipts
 
 **escrows**
 
 | Column | Notes |
 |---|---|
 | id, booking_id FK `UNIQUE` | |
-| network, network_epoch | Epoch handles testnet resets |
-| contract_id, escrow_key bytea(32) `UNIQUE` | |
-| token_contract_id, asset_code, asset_issuer | |
-| amount_units numeric(39,0) `CHECK > 0` | |
-| local_amount_minor, local_currency, fx_rate numeric(20,8), fx_rate_source, fx_locked_at | |
-| customer_wallet, professional_wallet, agreement_hash char(64) | |
-| state | `CREATED`, `FUNDED`, `DISPUTED`, `RELEASED`, `REFUNDED`, `RESOLVED` |
+| network, network_passphrase, network_epoch | Epoch handles testnet resets |
+| contract_id, escrow_key bytea(32) `UNIQUE` | `escrow_key` = HMAC escrow ID |
+| asset_code, asset_issuer, asset_sac_contract_id, asset_decimals smallint | Asset identity; checked at startup against `Asset(code, issuer).contract_id(passphrase)` |
+| asset_units numeric(39,0) `CHECK > 0` | Token amount |
+| fiat_amount_minor bigint, fiat_currency | Copied from the agreement; `CHECK = bookings.amount_minor` (enforced in the service, tested) |
+| fx_rate numeric(24,8), fx_base (asset code), fx_quote (currency), fx_source, fx_locked_at | Locked at preparation |
+| customer_wallet, professional_wallet | |
+| refund_after bigint, review_window bigint, arbitration_window bigint, review_deadline bigint NULL, dispute_deadline bigint NULL | Mirror of the on-chain values |
+| terms_canonical_json text, terms_hash char(64) `UNIQUE` | Escrow-terms document. `CHECK` that the hash equals sha256 of the text, as for agreements |
+| agreement_hash char(64) FK → agreements.agreement_hash | |
+| evidence_hash char(64) NULL | |
+| state | `CREATED`, `FUNDED`, `COMPLETION_SUBMITTED`, `DISPUTED`, `RELEASED`, `REFUNDED`, `RESOLVED` |
 | reconciliation | `AWAITING_SIGNATURE`, `PENDING_CONFIRMATION`, `CONFIRMED`, `FAILED` |
-| verification_error text NULL, professional_payout_units, customer_refund_units | |
-| last_synced_ledger, last_synced_at, version, created_at, updated_at | |
+| settled_by NULL, professional_payout_units, customer_refund_units numeric(39,0) NULL | `CHECK` they sum to `asset_units` when terminal |
+| verification_error text NULL, last_synced_ledger, last_synced_at, version, created_at, updated_at | |
+
+Index: `(state, refund_after)`, `(state, review_deadline)`, `(state, dispute_deadline)` for the keeper.
 
 **chain_transactions**
 
 | Column | Notes |
 |---|---|
-| id, escrow_id FK, kind | `FUND`, `RELEASE`, `REFUND`, `DISPUTE`, `RESOLVE` |
+| id, escrow_id FK, kind | `FUND`, `SUBMIT_COMPLETION`, `RELEASE`, `REFUND`, `EXTEND`, `DISPUTE`, `RESOLVE`, `FINALIZE` |
 | tx_hash char(64) `UNIQUE` | |
-| source_account, unsigned_envelope_xdr text, valid_until | Unsigned envelope is kept for verification only |
+| source_account, unsigned_envelope_xdr text, valid_until | Unsigned envelope kept for verification only |
 | status | `PREPARED`, `SUBMITTED`, `PENDING`, `CONFIRMED`, `FAILED`, `EXPIRED` |
-| ledger, ledger_closed_at, fee_charged, result_code, error | |
-| requested_by FK users, attempts, last_checked_at, created_at, confirmed_at | |
+| ledger, ledger_closed_at, fee_stroops numeric(39,0), result_code, error | |
+| requested_by FK users NULL (NULL = keeper), attempts, last_checked_at, created_at, confirmed_at | |
 
-Index `(status, last_checked_at)` for the reconciler. `UNIQUE (escrow_id, kind) WHERE status IN ('SUBMITTED','PENDING','CONFIRMED')`.
+Index `(status, last_checked_at)`. `UNIQUE (escrow_id, kind) WHERE status IN ('PREPARED','SUBMITTED','PENDING')`, so at most one in-flight transaction per action. A `PREPARED` row is replaced on re-prepare by expiring it first.
 
-**ledger_entries** (append-only): written only from confirmed chain data.
-`id, booking_id, escrow_id, chain_transaction_id NULL, type (CUSTOMER_FUNDING|PROFESSIONAL_PAYOUT|CUSTOMER_REFUND), amount_units, asset_code, from_address, to_address, tx_hash, ledger, created_at`.
-`UNIQUE (tx_hash, type)`.
+**chain_events**: ingested contract events, the unit of exactly-once processing.
+`id, contract_id, ledger int, ledger_closed_at, tx_hash char(64), tx_index int, event_index int, event_type text, escrow_key bytea(32), payload jsonb, status (INGESTED|APPLIED|APPLIED_NOOP|CONFLICT), source (TX_RESULT|EVENT_SCAN|STATE_SYNC), ingested_at, applied_at NULL, error NULL`.
+`UNIQUE (tx_hash, event_index)`. Index `(escrow_key, status, ledger, tx_index, event_index)`.
+Rows are never deleted.
 
 **chain_sync_state**
-`contract_id PK, last_ledger, last_cursor text, updated_at`: the event-scan cursor.
+`contract_id PK, last_ledger int, cursor text, leader_instance text, leader_since, updated_at`.
+The cursor is updated in the same transaction as the events it covers.
+
+**ledger_entries** (append-only): written only from confirmed chain data.
+`id, booking_id, escrow_id, chain_event_id FK UNIQUE-per-type, type (CUSTOMER_FUNDING|PROFESSIONAL_PAYOUT|CUSTOMER_REFUND), asset_units numeric(39,0), asset_code, asset_issuer, from_address, to_address, tx_hash, ledger, created_at`.
+`UNIQUE (tx_hash, type)`.
 
 **completion_submissions**
-`id, booking_id FK, submitted_by, notes, checklist jsonb, evidence_hash char(64), status (SUBMITTED|APPROVED|DISPUTED), submitted_at, decided_at`.
-`UNIQUE (booking_id) WHERE status = 'SUBMITTED'`.
+`id, booking_id FK, submitted_by, notes, checklist jsonb, evidence_hash char(64), status (PREPARED|SUBMITTED|APPROVED|DISPUTED|SUPERSEDED), prepared_at, submitted_at NULL (on-chain confirmation), decided_at`.
+`UNIQUE (booking_id) WHERE status IN ('PREPARED','SUBMITTED')`.
 **completion_files** `(submission_id, file_id)` PK.
 
+**cancellation_requests**
+`id, booking_id FK, requested_by FK, reason, status (OPEN|ACCEPTED|DECLINED|EXPIRED|WITHDRAWN), responded_by NULL, responded_at NULL, decline_reason NULL, created_at, expires_at (created + 48h)`.
+`UNIQUE (booking_id) WHERE status = 'OPEN'`.
+`ACCEPTED` is set only by the reconciler, when the professional's refund confirms.
+
 **receipts**
-`id, booking_id FK, escrow_id FK, kind (FUNDING|RELEASE|REFUND|RESOLUTION), number text UNIQUE (UFX-YYYY-NNNNNN), payload jsonb, payload_hash char(64), issued_at`.
+`id, booking_id FK, escrow_id FK, kind (FUNDING|RELEASE|REFUND|RESOLUTION), number text UNIQUE (UFX-YYYY-NNNNNN), asset_units numeric(39,0), asset_code, asset_issuer, fiat_amount_minor, fiat_currency, tx_hash, payload_canonical_json text, payload_hash char(64), issued_at`.
 `UNIQUE (escrow_id, kind)`.
 
 ### Issue 7 — Disputes and reviews
 
 **disputes**
-`id, booking_id FK, escrow_id FK, opened_by FK, reason (INCOMPLETE|DAMAGED|NO_SHOW|PRICE_CHANGED|QUALITY|OTHER), details, status (OPEN|UNDER_REVIEW|AWAITING_SETTLEMENT|RESOLVED|CLOSED), outcome NULL (RELEASE|REFUND|SPLIT), split_bps_to_professional int NULL CHECK 0–10000, resolution_note, resolved_by NULL, resolved_at, created_at, updated_at`.
+`id, booking_id FK, escrow_id FK, opened_by FK, reason (INCOMPLETE|DAMAGED|NO_SHOW|PRICE_CHANGED|QUALITY|OTHER), details, status (OPEN|UNDER_REVIEW|AWAITING_SETTLEMENT|RESOLVED|CLOSED), outcome NULL (RELEASE|REFUND|SPLIT|CONCEDED_RELEASE|CONCEDED_REFUND|TIMEOUT_REFUND), split_bps_to_professional int NULL CHECK 0–10000, resolution_note, resolved_by NULL, resolved_at, created_at, updated_at`.
+The outcome is set by the reconciler from the confirmed event, never from the admin's request alone.
 `UNIQUE (booking_id) WHERE status NOT IN ('RESOLVED','CLOSED')`.
 
 **dispute_evidence**
