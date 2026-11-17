@@ -1,0 +1,391 @@
+# UniFix — Stellar Wallets and Soroban Escrow Design
+
+Status: **Design for review, revision 2 (2026-11-17). Not implemented.** Implemented by Issues 5 (contract + wallets), 6 (funding, completion, release, refunds, reconciliation, keeper) and 7 (disputes, arbitration).
+
+Network: **Stellar testnet** (`Test SDF Network ; September 2015`). Every operation is a real testnet transaction. Nothing is simulated or presented as settled before on-chain confirmation.
+
+Revision 2 changes:
+
+- Deadline-based cancellation, refund and dispute policy, so no escrow can be locked permanently (§4).
+- Party concessions during a dispute (§4.3).
+- `submit_completion` moves on-chain (§5).
+- A separate `escrow-terms` document binds the escrow to the accepted agreement (§6).
+- Fiat and token units are separated (§8).
+- The testnet asset configuration was verified against live testnet (§8.1).
+- The reconciler's exactly-once design is specified (§10).
+
+---
+
+## 1. Goals and non-goals
+
+**Goals**
+
+1. A single-payment escrow per booking, enforced by a Soroban contract.
+2. The contract enforces who may move funds, independently of the backend and the frontend.
+3. The backend cannot release, refund or redirect funds by changing data. It holds no key that can choose a recipient or an amount.
+4. Double release, refund after release, release after refund, and arbitrary settlement during a dispute are all impossible **on-chain**.
+5. **No permanent lock.** Every non-terminal escrow state has a path to a terminal state that needs no UniFix key (§4.4).
+6. The database is a verified mirror of chain state. Each chain event is applied exactly once, including across restarts and multiple instances (§10).
+
+**Non-goals (MVP)**
+
+- Milestone or partial payments (a quote's `milestones` are descriptive work steps only).
+- Platform fees.
+- Fee sponsorship.
+- Mainnet.
+- Fiat on/off-ramps.
+- Mutual two-signature partial settlements, without the arbiter (post-MVP, §12).
+
+## 2. Actors and keys
+
+| Actor | Key held by | Can do on-chain |
+|---|---|---|
+| **Customer** | Customer's wallet (Freighter) | `fund` (with operator co-signature), `release`, `extend`, `open_dispute` |
+| **Professional** | Professional's wallet | `submit_completion`, `refund`, `open_dispute` |
+| **Operator** | Backend (`STELLAR_OPERATOR_SECRET`, env only) | Co-authorize `fund`: attests that the escrow terms are the ones the backend derived from an accepted agreement. As an ordinary fee-paying account it can also call the permissionless `finalize_expired`, whose outcome the contract fixes |
+| **Arbiter** | UniFix operations wallet (Freighter, human-held), **not** the backend | `resolve`, only escrows in `Disputed`, only splitting between the two parties |
+| **Contract admin** | UniFix operations wallet (multisig before mainnet) | `set_arbiter`, `set_operator`, `set_admin`. It has no access to funds and cannot change any existing escrow's terms or deadlines |
+| **Anyone** | — | `finalize_expired` once a deadline has passed. The outcome is fixed by the contract |
+
+## 3. Trust model
+
+1. **Funds can only go to the stored customer or the stored professional.** The contract has no function that pays a third address. This holds for every caller, including the admin, arbiter and operator.
+2. **Undisputed escrows are non-custodial.** The customer can pay the professional; the professional can return the funds; deadlines decide the rest. UniFix's keys play no part.
+3. **Disputed escrows trust the arbiter**, within limits:
+   - The arbiter can act only after a **party** opened the dispute.
+   - It splits funds only between the two parties.
+   - Either party can concede at any time.
+   - If the arbiter does nothing for `arbitration_window`, the fallback outcome applies automatically (§4.3).
+4. **The admin can replace the arbiter, operator and admin.** A compromised admin key can therefore decide **disputed** escrows only. It cannot touch undisputed escrows or change deadlines.
+5. **A stolen operator key** lets an attacker co-sign new `fund` calls. Each still needs the customer's own signature, and the customer's money still goes only to that customer or professional. The attacker can also trigger deadlines that have already passed, which the contract pays out to the predetermined party anyway. No theft path exists.
+6. **The backend is trusted for liveness and display, not custody.** If UniFix disappears:
+   - parties can still `release`, `refund` or `open_dispute` with any Stellar tool;
+   - anyone can call `finalize_expired` after a deadline;
+   - the reconciler catches up from chain events when the backend returns.
+7. **Asset issuer risk.** Circle's testnet USDC issuer has `AUTH_REVOCABLE` set, while clawback is disabled (verified 2026-11-17, §8.1). The issuer can freeze balances, including the contract's. This is inherent to regulated stablecoins and is outside our control.
+8. **Off-chain facts the contract cannot check:** whether work was done. That is the customer's judgement (release or dispute), the deadlines, or the arbiter's decision.
+9. **Not upgradeable.** A new contract version is a new deployment, and existing escrows stay on the old contract.
+
+## 4. Cancellation, refund, dispute and arbitration policy
+
+### 4.1 Deadlines (fixed per escrow at funding, bound in `terms_hash`)
+
+| Deadline | Value | Bounds enforced on-chain |
+|---|---|---|
+| `refund_after` | Later of (agreed `completion_date` 23:59 Africa/Lagos + `SERVICE_GRACE` [3 days]) or (funding time + 24 h) | `funded_at + 24h ≤ refund_after ≤ funded_at + 180d` |
+| `review_window` | 72 h, from `submit_completion` | 24 h – 14 d |
+| `arbitration_window` | 30 days, from `open_dispute` | 7 d – 90 d |
+
+The windows are copied into each escrow record at `fund`. Later admin config changes never affect existing escrows.
+
+### 4.2 On-chain state machine
+
+```
+                  fund (customer + operator)
+                           │
+                           ▼
+   ┌──────────────────── Funded ─────────────────────┐
+   │  release(customer) → Released                    │
+   │  refund(professional) → Refunded                 │
+   │  extend(customer, later refund_after)            │
+   │  open_dispute(party) [now < refund_after] → Disputed
+   │  submit_completion(professional) [now < refund_after] → CompletionSubmitted
+   │  finalize_expired(anyone) [now ≥ refund_after] → Refunded (timeout)
+   └──────────────────────────────────────────────────┘
+   CompletionSubmitted:
+      release(customer) → Released
+      refund(professional) → Refunded
+      open_dispute(party) [now < review_deadline] → Disputed
+      finalize_expired(anyone) [now ≥ review_deadline] → Released (auto-release)
+   Disputed:
+      resolve(arbiter, professional_amount) → Resolved (or Released/Refunded at 100%/0%)
+      release(customer)  → Released   (concession: customer accepts professional's position)
+      refund(professional) → Refunded (concession: professional accepts customer's position)
+      finalize_expired(anyone) [now ≥ dispute_deadline] → fallback (D16a: Refunded)
+   Released | Refunded | Resolved: terminal, every mutating call fails with InvalidState
+```
+
+### 4.3 Policy by booking stage (off-chain UX + on-chain enforcement)
+
+| Stage | Customer wants out | Professional wants out | No one acts |
+|---|---|---|---|
+| `PENDING_PAYMENT` (no funds) | Cancel → `CANCELLED` | Cancel → `CANCELLED` | Booking expires after 7 days → `CANCELLED` |
+| `FUNDED` / `IN_PROGRESS` | *Cancellation request* (off-chain). The professional accepts by signing `refund`, or declines. After a decline, or 48 h without an answer, the customer may open a dispute, or wait for `refund_after` | Signs `refund` → `REFUNDED`. Recorded as a professional cancellation | `refund_after` passes → keeper calls `finalize_expired` → `REFUNDED` |
+| `COMPLETION_SUBMITTED` | Opens a dispute within `review_window` | `refund` → `REFUNDED` | `review_deadline` passes → `finalize_expired` → `COMPLETED` (auto-release) |
+| `DISPUTED` | Concede (`release`) → `COMPLETED` | Concede (`refund`) → `REFUNDED` | Arbiter resolves. If the arbiter does nothing by `dispute_deadline`, the fallback (**refund to customer**, D16a) applies |
+
+Rules:
+
+- **A professional must submit completion before `refund_after`**, or obtain an extension from the customer (`extend`). After that deadline, the agreed outcome is a refund.
+- **Disputes must be opened before the deadline of the current state matures.** Once a deadline has passed, its outcome is final. The concessions are the only settlement actions a party can take during a dispute, and each moves funds **only in the other party's favour**, so neither party can take funds for themselves. This satisfies "disputes block ordinary settlement" while reducing dependence on the arbiter (D17).
+- The arbiter's split: `professional_amount = floor(asset_amount × bps / 10000)`, with the remainder to the customer.
+- Notifications warn both parties 24 h before any deadline (Issue 8).
+
+### 4.4 Liveness proof (no permanent lock)
+
+| State | Exit that needs no UniFix key |
+|---|---|
+| Funded | `finalize_expired` after `refund_after` (≤ 180 days) |
+| CompletionSubmitted | `finalize_expired` after `review_deadline` (≤ 14 days) |
+| Disputed | `finalize_expired` after `dispute_deadline` (≤ 90 days) |
+
+Residual risks:
+
+- An issuer freeze (§3.7).
+- Ledger-entry archival. Every mutating call extends TTL, and an archived persistent entry can be restored with a `RestoreFootprint` operation. Archival delays access but never destroys an entry.
+
+## 5. Contract interface (`backend/contracts/escrow`)
+
+One deployment holds many escrows, keyed by `escrow_id: BytesN<32>`. One token (Stellar Asset Contract) is fixed at construction, so the contract cannot hold any other asset.
+
+```rust
+#[contracttype] pub enum EscrowStatus { Funded, CompletionSubmitted, Disputed, Released, Refunded, Resolved }
+#[contracttype] pub enum SettledBy { Customer, Professional, Arbiter, Timeout }
+
+#[contracttype] pub struct Escrow {
+    pub customer: Address, pub professional: Address,
+    pub amount: i128,                         // token base units
+    pub terms_hash: BytesN<32>,               // SHA-256 of the escrow-terms document (§6)
+    pub status: EscrowStatus,
+    pub funded_at: u64, pub refund_after: u64,
+    pub review_window: u64, pub arbitration_window: u64,
+    pub review_deadline: Option<u64>, pub dispute_deadline: Option<u64>,
+    pub evidence_hash: Option<BytesN<32>>, pub disputed_by: Option<Address>,
+    pub professional_payout: i128, pub customer_refund: i128,
+    pub settled_by: Option<SettledBy>,
+}
+
+fn __constructor(env, admin, arbiter, operator, token, review_window: u64, arbitration_window: u64);
+fn fund(env, escrow_id, customer, professional, amount: i128, terms_hash, refund_after: u64) -> Result<(), Error>; // customer + operator auth
+fn submit_completion(env, escrow_id, evidence_hash: BytesN<32>) -> Result<(), Error>;                         // professional auth
+fn release(env, escrow_id) -> Result<(), Error>;            // customer auth; Funded | CompletionSubmitted | Disputed
+fn refund(env, escrow_id) -> Result<(), Error>;             // professional auth; Funded | CompletionSubmitted | Disputed
+fn extend(env, escrow_id, new_refund_after: u64) -> Result<(), Error>; // customer auth; Funded; later and ≤ funded_at + 180d
+fn open_dispute(env, escrow_id, caller: Address) -> Result<(), Error>; // caller ∈ {customer, professional}, auth; before the current deadline
+fn resolve(env, escrow_id, professional_amount: i128) -> Result<(), Error>; // arbiter auth; Disputed; 0 ≤ x ≤ amount
+fn finalize_expired(env, escrow_id) -> Result<(), Error>;   // no auth; fails NotExpired unless a deadline passed
+fn get_escrow(env, escrow_id) -> Result<Escrow, Error>;
+fn config(env) -> Config;
+fn set_arbiter(env, a: Address) -> Result<(), Error>;   // admin auth
+fn set_operator(env, o: Address) -> Result<(), Error>;  // admin auth
+fn set_admin(env, a: Address) -> Result<(), Error>;     // admin auth
+```
+
+**Errors:** `AlreadyExists`, `NotFound`, `InvalidAmount`, `SameParty`, `InvalidState`, `NotParty`, `InvalidSplit`, `InvalidDeadline`, `DeadlinePassed`, `NotExpired`.
+
+**Events** (topics `("unifix", name, escrow_id)`): `funded`, `completion_submitted`, `extended`, `disputed`, `released`, `refunded`, `resolved`, `expired`, plus config events. Each terminal event carries `professional_payout`, `customer_refund` and `settled_by`.
+
+**Implementation rules:**
+
+- Update state before calling `token.transfer` (checks, effects, interactions).
+- Transfers go only to the stored parties.
+- Persistent storage with TTL extension on every write.
+- `overflow-checks = true`.
+- No `upgrade` function.
+
+**Invariants (randomised property tests):**
+
+- I1: token balance = Σ `amount` over non-terminal escrows.
+- I2: for terminal escrows, `professional_payout + customer_refund = amount`.
+- I3: terminal states are final.
+- I4: `resolve` is valid only in `Disputed`.
+- I5: in `Disputed`, the customer can only move funds to the professional and the professional only to the customer.
+- I6: no escrow stays non-terminal after `max(refund_after, review_deadline, dispute_deadline)` once `finalize_expired` is called.
+
+## 6. Binding escrow to the accepted agreement
+
+**Quotes cannot change after acceptance** (enforced in three layers):
+
+1. **API:** there is no endpoint that edits a quote. A revision creates a new version that supersedes the old one.
+2. **Database:**
+   - A trigger rejects `UPDATE` of any term column on `quotes` at any time. Only `status` and `responded_at` may change, and only from `PENDING`.
+   - A trigger rejects `DELETE`.
+   - `agreements` is append-only.
+3. **Cryptography:** the agreement hash is anchored on-chain through the escrow-terms hash (below).
+
+**Two canonical documents**, each serialised with **RFC 8785 (JSON Canonicalization Scheme)** and hashed with SHA-256. Money is integers, there are no floats, timestamps are RFC 3339 UTC to the second, and every field is required (absent values are explicit `null`).
+
+```jsonc
+// 1. agreement (written when the quote is accepted) → agreements.terms_hash = agreement_hash
+{ "schema": "unifix.agreement.v1", "agreement_id": "…", "booking_id": "…", "quote_id": "…", "quote_version": 2,
+  "conversation_id": "…", "service_request_id": null, "customer_id": "…", "professional_id": "…",
+  "title": "…", "description": "…", "labour_minor": 2500000, "materials_minor": 1000000, "total_minor": 3500000,
+  "currency": "NGN", "completion_date": "2026-11-20", "service_method": "PRO_TO_CUSTOMER",
+  "payment_terms": "…", "milestones": [{"title": "…", "percent": 100}], "accepted_at": "2026-11-17T10:30:00Z" }
+
+// 2. escrow terms (written at escrow preparation) → passed to fund() as terms_hash
+{ "schema": "unifix.escrow-terms.v1", "agreement_hash": "<hex>", "booking_id": "…", "escrow_id": "<hex>",
+  "network_passphrase": "Test SDF Network ; September 2015", "escrow_contract_id": "C…",
+  "asset": {"code": "USDC", "issuer": "G…", "sac_contract_id": "C…", "decimals": 7},
+  "asset_amount": "212121213", "fiat": {"amount_minor": 3500000, "currency": "NGN"},
+  "fx": {"rate": "1650.00000000", "base": "USDC", "quote": "NGN", "source": "CONFIGURED_TESTNET", "locked_at": "…"},
+  "customer_wallet": "G…", "professional_wallet": "G…",
+  "refund_after": 1764000000, "review_window": 259200, "arbitration_window": 2592000 }
+```
+
+**Binding chain:** quote (immutable) → agreement JSON → `agreement_hash` → escrow-terms JSON (which includes `agreement_hash`, the token amount, wallets and deadlines) → `terms_hash` → stored on-chain by `fund`, which the operator co-signs.
+
+**Verification at confirmation (Issue 6):** the reconciler reads `get_escrow` and requires the following, or the booking is not funded and the escrow is flagged `FAILED_VERIFICATION`:
+
+- on-chain `customer`, `professional`, `amount`, `refund_after`, `review_window` and `arbitration_window` equal the escrow row;
+- on-chain `terms_hash` equals SHA-256(JCS(stored escrow-terms document));
+- that document's `agreement_hash` equals the agreement row's hash;
+- the agreement row's hash equals SHA-256(JCS(agreement document)).
+
+**Independent verification:** `GET /bookings/{id}/agreement` returns both canonical documents as exact strings, with their hashes. Either party can recompute them and compare with the contract state on stellar.expert.
+
+**Escrow ID:** `escrow_id = HMAC-SHA256(ESCROW_ID_SECRET, "unifix-escrow-v1|" + network_passphrase + "|" + booking_id)`. It is deterministic per booking, and it is unique (DB unique index, plus on-chain `AlreadyExists`).
+
+## 7. Wallet ownership (SEP-53)
+
+1. `POST /wallets/challenge {address}` validates the StrKey checksum and stores a single-use challenge (5-minute expiry). The message is `UniFix wallet verification\nAddress: G…\nUser: <id>\nNetwork: Test SDF Network ; September 2015\nNonce: <128-bit hex>\nIssued: <RFC3339>`.
+2. Freighter `signMessage` signs ed25519 over `SHA-256("Stellar Signed Message:\n" + message)` (SEP-53).
+3. `POST /wallets {address, message, signature}`: the server consumes the challenge atomically, then verifies the signature with the address's key.
+4. Horizon check: the account exists on testnet; the response reports `has_escrow_trustline` for the configured asset.
+5. A verified address belongs to one user: `UNIQUE (network, address) WHERE revoked_at IS NULL`.
+
+**Must be verified before Issue 5 closes:** the exact signature encoding against a **real Freighter-produced fixture**.
+
+## 8. Units, assets and conversion
+
+**Fiat accounting units** (agreements, quotes, bookings):
+
+- integer **minor units** with an ISO 4217 code: `amount_minor: 3500000`, `currency: "NGN"` (NGN and GHS have exponent 2);
+- stored as `bigint`; never floats.
+
+**Token units** (escrow, chain transactions, ledger, receipts):
+
+- integer **base units** of a specific asset;
+- stored as `numeric(39,0)`, which fits `i128`;
+- serialised in JSON as a **decimal string**, because it can exceed JavaScript's safe-integer range: `asset_amount: "212121213"`;
+- always accompanied by an explicit asset object `{code, issuer, sac_contract_id, decimals}`, or the canonical SEP-11 string `USDC:G…`.
+
+**Network fees:** integer stroops of XLM, as a string: `fee_stroops: "104321"`.
+
+**Conversion** (exact integer math, done once at escrow preparation and locked onto the escrow):
+
+```
+asset_amount = ceil( amount_minor × 10^asset.decimals / (rate × 10^currency_exponent) )
+  rate = fiat major units per 1 whole asset unit, a decimal string with ≤ 8 places (e.g. "1650.00000000")
+  example: ₦35,000.00 → 3,500,000 × 10^7 / (1650 × 10^2) = 212,121,212.12… → 212,121,213 base units (21.2121213 USDC)
+```
+
+- Rounding is **up**, so the professional is never underpaid by rounding.
+- Computed with Python `Decimal` at sufficient precision, then converted to `int`. A unit test with boundary vectors checks it.
+- Testnet rate source is `CONFIGURED_TESTNET` (env `FX_RATE_USDC_NGN`). A production FX source is a separate decision.
+
+### 8.1 Verified testnet asset configuration (checked 2026-11-17)
+
+| Item | Value | How verified |
+|---|---|---|
+| Asset | `USDC` | Circle docs, "USDC contract addresses", Testnet table, row "Stellar Testnet": `USDC-GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` |
+| Issuer | `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5` | Horizon testnet `/accounts/…`: `home_domain = centre.io` |
+| SAC contract ID | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` | Computed with stellar-sdk 17.0.1 `Asset.contract_id(testnet)`; matches Horizon `/assets` `contract_id`; instance ledger entry exists via Soroban RPC `getLedgerEntries` |
+| Decimals | 7 | All classic Stellar assets |
+| Issuer flags | `auth_required=false`, `auth_revocable=true`, `auth_clawback_enabled=false` | Horizon `/assets` |
+| Soroban RPC | `https://soroban-testnet.stellar.org`, healthy, retention window 120,960 ledgers (~7 days) | `getHealth` |
+| Horizon | `https://horizon-testnet.stellar.org` | — |
+| Mainnet issuer (reference only) | `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` | Circle docs, Mainnet table |
+| Getting testnet USDC | **Not documented on Circle's addresses page.** Circle runs a public faucet, but it was not verified for this plan; check at Issue 5 | — |
+
+- **Startup check (Issue 5):** the service refuses to start unless `ESCROW_TOKEN_CONTRACT_ID` equals `Asset(code, issuer).contract_id(passphrase)` and the instance exists on the configured network.
+- **E2E test asset:** a UniFix-issued test asset, whose issuer key is generated per test run and never persisted, wrapped in its own SAC, with its own escrow deployment. This lets the test harness mint balances without a faucet. Its configuration is derived and checked the same way.
+
+## 9. Payment flows (frontend ↔ backend ↔ chain)
+
+| Step | Frontend (Freighter) | Backend | Chain |
+|---|---|---|---|
+| Prepare | Requests a transaction | Checks business rules; builds the invoke with **the user's account as source**; simulates; assembles; operator auth-entry signature (`fund` only); stores `PREPARED` with the expected tx hash; returns `unsigned_xdr` | — |
+| Sign | `signTransaction(unsigned_xdr, testnet)` | — | — |
+| Submit | Posts `signed_xdr` | Parses; checks the network passphrase; **signed tx hash must equal the prepared hash**; checks the source signature; `sendTransaction`; `SUBMITTED` → `PENDING_CONFIRMATION` | Transaction queued |
+| Confirm | Polls `GET /bookings/{id}` | Reconciler applies the events exactly once (§10) | Ledger closes |
+
+| Action | Signer | Route (prepare, then submit) | Booking result |
+|---|---|---|---|
+| Fund | customer | `POST /bookings/{id}/escrow` → `POST /escrows/{id}/funding` | `FUNDED` |
+| Submit completion | professional | `POST /bookings/{id}/completion` (evidence → `unsigned_xdr`) → `POST /bookings/{id}/completion/submit` | `COMPLETION_SUBMITTED` |
+| Release / concede | customer | `POST /escrows/{id}/release` ×2 | `COMPLETED` |
+| Refund / concede | professional | `POST /escrows/{id}/refund` ×2 | `REFUNDED` |
+| Extend deadline | customer | `POST /escrows/{id}/extend` ×2 | unchanged |
+| Open dispute | party | `POST /escrows/{id}/disputes` → `POST /disputes/{id}/lock` | `DISPUTED` |
+| Resolve | arbiter (admin) | `POST /disputes/{id}/resolve` ×2 | `COMPLETED` / `REFUNDED` / `RESOLVED` |
+| Expiry | keeper (operator account as fee payer) or anyone | internal | `REFUNDED` / `COMPLETED` |
+
+**Keeper.** Part of the reconciler loop. When a deadline has passed, it submits `finalize_expired` with the operator account as source and fee payer. It can only trigger outcomes the contract has already fixed. Policy (D16b): it auto-finalizes all three timeout types, 15 minutes after maturity.
+
+**Failure handling:**
+
+| Situation | Handling |
+|---|---|
+| Never signed | `PREPARED` expires with the tx timebounds (5 min); the client re-prepares |
+| `TRY_AGAIN_LATER` | Retry up to 3× with backoff |
+| `ERROR` | `FAILED` with the result code |
+| RPC down after submit | Stays `SUBMITTED`; the reconciler resolves it later |
+| `NOT_FOUND` after timebounds + 2 ledgers | `EXPIRED`; can never land; safe to re-prepare |
+| On-chain failure | Recorded with the result XDR; state unchanged |
+| Transaction made outside our API | Found by the event scan and applied with `actor = CHAIN` |
+
+**Duplicate-payment prevention:**
+
+- one escrow per booking;
+- on-chain `AlreadyExists`;
+- one in-flight transaction per (escrow, kind);
+- `Idempotency-Key` on every 💰 route;
+- exactly-once event application (§10).
+
+## 10. Reconciler: exactly-once processing, restarts, multiple instances
+
+**Principle:** delivery is at least once and application is idempotent, so the effect is exactly once. All reconciler state lives in PostgreSQL; nothing that matters is held in memory.
+
+**Single path for every chain effect.** Our own submitted transactions and the contract event scan both feed the same steps:
+
+1. **Ingest.** When `getTransaction` reports `SUCCESS`, the events are taken from the transaction meta. The event scan uses `getEvents` filtered by contract ID from the cursor. Both insert into `chain_events` with `INSERT … ON CONFLICT (tx_hash, event_index) DO NOTHING`. Only rows actually inserted (`RETURNING`) proceed.
+2. **Apply** `apply_chain_event(event_id)`, in one DB transaction:
+   - a. `SELECT … FOR UPDATE` the `chain_events` row (`status = INGESTED`), the escrow row and the booking row.
+   - b. Read `get_escrow` from RPC, which is authoritative current state, and verify the terms (§6).
+   - c. Compute the transition. If the escrow is already in that state or later, mark the event `APPLIED_NOOP`. If the event contradicts the chain's current state, mark it `CONFLICT` and raise an admin alert. A state never regresses.
+   - d. Write the booking transition, escrow state, `ledger_entries` (`UNIQUE (tx_hash, type)`), receipt (`UNIQUE (escrow_id, kind)`), timeline, audit, and `chain_transactions.status = CONFIRMED`.
+   - e. Mark the event `APPLIED` and commit.
+
+A crash before commit rolls everything back, and the event is retried. A crash after commit leaves it `APPLIED`, and the retry is a no-op.
+3. **Cursor.** `chain_sync_state.last_ledger` / `cursor` advance **in the same transaction** as the ingest of that page of events. After a restart the scan resumes from the last committed cursor. Re-reading a page is harmless because of the unique key.
+4. **Ordering.** Events for one escrow are applied in `(ledger, tx_index, event_index)` order: the loop picks the oldest `INGESTED` event per escrow. The state check in 2c makes out-of-order arrival safe anyway.
+
+**Multiple instances and workers:**
+
+- Every API process starts a reconciler task. Each tick, it tries `pg_try_advisory_lock(RECONCILER_LOCK_ID)` on a **dedicated, direct (non-pooled) connection** held for as long as it leads.
+- Only the leader polls, scans and runs the keeper. If the leader dies, PostgreSQL drops its session and the lock, and another instance takes over on its next tick (≤ 5 s).
+- Session-level advisory locks do not work through PgBouncer in transaction-pooling mode. The leader connection must bypass the pooler, and the deployment guide states this.
+- **The lock is an efficiency measure, not the correctness mechanism.** If two leaders ever overlapped (for example during a network partition), the row locks and unique constraints in steps 1–2 would still apply each event once.
+- API request handlers may check `getTransaction` once synchronously after submit (fast path). They call the same `apply_chain_event`, so a request handler racing the reconciler is safe.
+
+**Restart behaviour:**
+
+- `SUBMITTED`/`PENDING` transactions are reloaded from the DB and polled again.
+- Rows past their timebounds + margin with `NOT_FOUND` become `EXPIRED`.
+- `INGESTED` events not yet applied are applied.
+- Keeper candidates are recomputed from the escrow deadlines.
+
+**Keeper deduplication:** before submitting `finalize_expired`, the keeper inserts a `chain_transactions` row of kind `FINALIZE`. The partial unique index (one in-flight per escrow and kind) rejects a second row. A duplicate that still reached the chain fails with `InvalidState` and changes nothing.
+
+**RPC retention gap.** RPC keeps about 7 days of events. If the cursor is older than `getHealth.oldest_ledger`, the reconciler runs a **full sweep**: `get_escrow` for every non-terminal escrow, applying any differences as synthetic `STATE_SYNC` events with the same idempotent apply. It then resets the cursor to `oldest_ledger`. The same sweep is available as `app.cli reconcile --full`.
+
+**Observability:** `GET /admin/ops/status` reports the leader instance ID, cursor lag in ledgers, the oldest pending transaction age, the count of `CONFLICT`/`FAILED_VERIFICATION` items and the last error.
+
+## 11. Frontend impact
+
+Listed for Victor in [API_CONTRACT.md §13](API_CONTRACT.md#13-frontend-integration-changes). The escrow-related items are F12–F15 and F22–F25.
+
+## 12. Decisions (see DEVELOPMENT_PLAN §5)
+
+- D11 arbiter custody (human-held wallet)
+- D12 operator co-signature on `fund`
+- D13 asset (Circle testnet USDC, verified)
+- D14 fixed testnet FX rate
+- D15 no fee
+- D16a dispute-timeout fallback (refund to customer)
+- D16b keeper auto-finalizes
+- D16c default windows (3-day service grace, 72 h review, 30-day arbitration)
+- D17 concessions allowed during a dispute
+
+Post-MVP: mutual two-signature partial settlement; multisig admin and arbiter; live FX.
