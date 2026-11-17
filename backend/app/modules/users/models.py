@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import CheckConstraint, Index, String, text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, String, text
 from sqlalchemy.dialects.postgresql import CITEXT
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -48,6 +49,13 @@ class User(UUIDPrimaryKey, Timestamps, Base):
     city: Mapped[str | None] = mapped_column(String(80))
     country: Mapped[str] = mapped_column(String(2), nullable=False)
     last_login_at: Mapped[datetime | None] = mapped_column()
+    campus_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("campuses.id", ondelete="SET NULL"), index=True
+    )
+    # use_alter: users <-> files reference each other; the FK is added after both tables exist.
+    avatar_file_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("files.id", ondelete="SET NULL", use_alter=True)
+    )
 
     @property
     def is_active(self) -> bool:

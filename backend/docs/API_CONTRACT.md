@@ -1,7 +1,7 @@
 # UniFix API Contract (for the frontend)
 
 Audience: Victor (frontend). You should not need to read backend code to integrate.
-Status: **Revision 3 (2026-11-17).** §1–§4 are **implemented** (Issue #1). Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
+Status: **Revision 3 (2026-11-17).** §1–§5 are **implemented** (Issues #1 and #2). Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
 
 Revision 3 changes:
 
@@ -152,7 +152,7 @@ Login lockout: 5 failed attempts for an email (registered or not) lock that emai
 
 Timestamps are returned as RFC 3339 with an explicit `+00:00` offset (UTC).
 
-The `professional` object in `register` (`category_slug, headline, bio, area, coverage, years_experience, starting_price_minor, currency, availability, skills`) is processed from Issue 2. Before Issue 2 it is rejected with 422, so the frontend should not send it until then.
+The `professional` object in `register` (`category_slug, headline, bio, area, coverage, years_experience, starting_price_minor, currency, availability, skills`) is processed from Issue 2. It is processed atomically: if the profile is invalid (e.g. unknown category), no account is created. Sending it with role `CUSTOMER` is a 422.
 
 ### 4.6 Frontend session flow
 
@@ -174,6 +174,8 @@ Use `fetch(url, { credentials: "include" })` for the four cookie routes. Sending
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/campuses?country&q` | `Campus[]` = `{id, slug, name, short_name, city, state, country}` |
+| POST / PATCH | `/admin/campuses[/{id}]` | Admin: create / update / deactivate a campus |
+| POST / PATCH | `/admin/categories[/{id}]` | Admin: create / update / disable a category (one level of nesting) |
 | GET | `/categories` | `Category[]` = `{id, slug, name, parent_id, description}` |
 | GET | `/professionals` | Query: `q, category, campus, city, availability (NOW\|TODAY), min_rating, verified_only, sort (BEST\|NEAREST\|MOST_JOBS\|EXPERIENCE), lat, lng, limit, offset` |
 | GET | `/professionals/{id}` | Public `Professional` |
@@ -202,7 +204,29 @@ Professional = {
   joined_at;
 }
 FileRef = { id; url; signed_url: string | null; name; content_type; size; width: number | null; height: number | null; purpose }
+ProfessionalPrivateOut = Professional & { is_listed: boolean; latitude: string | null; longitude: string | null;
+                                          verifications: { id; type; status; note; files: FileRef[]; submitted_at;
+                                                           reviewed_at; rejection_reason }[] }
 ```
+
+Implementation notes (Issue #2):
+
+- **Discovery filters:**
+  - `category` matches the primary category **or** any additional category; a parent slug also matches its sub-categories.
+  - Unknown `category`/`campus` slugs return `[]`.
+  - `availability=TODAY` includes `NOW`.
+- **Search:** `q` runs a full-text search over headline, bio, area, city and skills, plus a name match.
+- **Sorting:**
+  - `BEST` is a Bayesian average, so 4.6★ from 40 reviews outranks 5★ from 2.
+  - `NEAREST` uses `lat`/`lng`, else the `campus` filter's centroid, else the caller's campus. Distance is measured to the professional's approximate point, or else to their nearest served campus.
+- **Verification:**
+  - `verification_status` becomes `VERIFIED` once the **IDENTITY** check is approved.
+  - `PENDING` while any check awaits review, `REJECTED` when all submitted checks were rejected.
+  - IDENTITY and TRADE require at least one `VERIFICATION_DOCUMENT` upload; PHONE may have none (reviewed manually).
+  - Rejection requires a reason.
+- **Locations:** professional coordinates are rounded to 2 decimals (~1 km) before storage and only appear in `ProfessionalPrivateOut`.
+- **`User` additions:** `User` now also has `avatar_url`, `campus` and `professional_id`. `PATCH /auth/me` accepts `campus_id` and `avatar_file_id` (an `AVATAR` upload of yours); `null` clears either.
+- **`GET /files/{id}` response headers:** `Content-Security-Policy: default-src 'none'; sandbox`; `Content-Disposition: attachment` for PDFs; `Cache-Control: private, no-store` for private files.
 
 `rating` and the breakdown values are display averages (`number`, 2 decimals). They are not money.
 
@@ -212,6 +236,15 @@ FileRef = { id; url; signed_url: string | null; name; content_type; size; width:
 |---|---|---|---|
 | `AVATAR`, `PORTFOLIO` | jpeg/png/webp | 5 MB | public |
 | `REQUEST_MEDIA`, `MESSAGE_ATTACHMENT`, `COMPLETION_EVIDENCE`, `DISPUTE_EVIDENCE` | jpeg/png/webp | 10 MB | private |
+
+Who may upload:
+
+- `PORTFOLIO`, `VERIFICATION_DOCUMENT` and `COMPLETION_EVIDENCE`: professionals.
+- `REQUEST_MEDIA`: customers.
+- `MESSAGE_ATTACHMENT`: both customers and professionals.
+- `AVATAR`: anyone.
+
+Uploads are rate-limited per user (`429`). The type is detected from the file's bytes; a mismatched or unreadable file returns `415`.
 | `VERIFICATION_DOCUMENT` | jpeg/png/webp/pdf | 10 MB | owner + admins only |
 
 - Images are re-encoded, which strips EXIF and GPS.

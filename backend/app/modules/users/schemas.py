@@ -7,6 +7,7 @@ from typing import Annotated
 from pydantic import Field, StringConstraints
 
 from app.core.schemas import APIModel, ResponseModel
+from app.modules.campuses.schemas import CampusOut
 from app.modules.users.models import AccountStatus, Country, Role, User
 
 FullName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=120)]
@@ -26,10 +27,23 @@ class UserOut(ResponseModel):
     country: Country
     phone: str | None
     created_at: datetime
+    avatar_url: str | None = None
+    campus: CampusOut | None = None
+    professional_id: uuid.UUID | None = None
 
     @classmethod
-    def from_user(cls, user: User) -> UserOut:
+    def from_user(
+        cls,
+        user: User,
+        *,
+        campus: CampusOut | None = None,
+        professional_id: uuid.UUID | None = None,
+        avatar_url: str | None = None,
+    ) -> UserOut:
         return cls(
+            avatar_url=avatar_url,
+            campus=campus,
+            professional_id=professional_id,
             id=user.id,
             name=user.full_name,
             email=user.email,
@@ -46,6 +60,8 @@ class UserOut(ResponseModel):
 class UpdateMeIn(APIModel):
     name: FullName | None = None
     city: City | None = None
+    campus_id: uuid.UUID | None = Field(default=None, description="Self-declared campus; null clears it")
+    avatar_file_id: uuid.UUID | None = Field(default=None, description="An AVATAR upload; null clears it")
     phone: PhoneE164 | None = Field(default=None, description="E.164 format, e.g. +2348012345678")
 
 

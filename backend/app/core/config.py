@@ -36,6 +36,11 @@ class SmtpTlsMode(StrEnum):
     TLS = "tls"
 
 
+class StorageBackend(StrEnum):
+    LOCAL = "local"
+    S3 = "s3"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -77,6 +82,16 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_tls_mode: SmtpTlsMode = SmtpTlsMode.STARTTLS
     smtp_timeout_seconds: float = 10.0
+
+    storage_backend: StorageBackend = StorageBackend.LOCAL
+    local_storage_dir: str = "var/uploads"
+    s3_endpoint_url: str | None = None
+    s3_bucket: str | None = None
+    s3_region: str | None = None
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: SecretStr | None = None
+    signed_url_ttl_seconds: int = Field(default=300, ge=30, le=3600)
+    upload_rate_limit_per_hour: int = Field(default=120, ge=1)
 
     frontend_base_url: str = "http://localhost:3000"
     email_verification_ttl_seconds: int = Field(default=24 * 3600, ge=600)
@@ -120,6 +135,8 @@ class Settings(BaseSettings):
             raise ValueError("SESSION_ABSOLUTE_TTL_SECONDS must be >= REFRESH_IDLE_TTL_SECONDS")
         if self.email_backend is EmailBackend.SMTP and not self.smtp_host:
             raise ValueError("EMAIL_BACKEND=smtp requires SMTP_HOST")
+        if self.storage_backend is StorageBackend.S3 and not self.s3_bucket:
+            raise ValueError("STORAGE_BACKEND=s3 requires S3_BUCKET")
         if self.env is Environment.PRODUCTION:
             self._validate_production(secret)
         return self
@@ -136,6 +153,8 @@ class Settings(BaseSettings):
             problems.append("CORS_ORIGINS must all be https")
         if self.email_backend is not EmailBackend.SMTP:
             problems.append("EMAIL_BACKEND must be smtp (console is development/test only)")
+        if self.storage_backend is not StorageBackend.S3:
+            problems.append("STORAGE_BACKEND must be s3 (local is development/test only)")
         if self.password_hash_memory_kib < 65536 or self.password_hash_time_cost < 3:
             problems.append("password hashing parameters are below the production minimum")
         if problems:

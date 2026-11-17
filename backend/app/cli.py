@@ -1,5 +1,7 @@
 """Operational commands.
 
+uv run python -m app.cli seed
+
 uv run python -m app.cli create-admin --email ops@example.com --name "UniFix Ops"
 (the password is read from the UNIFIX_ADMIN_PASSWORD env var or prompted for; never a flag)
 """
@@ -16,6 +18,7 @@ from app.core.config import get_settings
 from app.core.container import build_services
 from app.core.errors import AppError
 from app.modules.users import service as users_service
+from app.seed import seed
 
 
 async def _create_admin(email: str, name: str) -> int:
@@ -35,15 +38,29 @@ async def _create_admin(email: str, name: str) -> int:
         await services.engine.dispose()
 
 
+async def _seed() -> int:
+    services = build_services(get_settings())
+    try:
+        async with services.session_factory() as session:
+            categories, campuses = await seed(session)
+        print(f"Seed complete: {categories} categories and {campuses} campuses added")
+        return 0
+    finally:
+        await services.engine.dispose()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     commands = parser.add_subparsers(dest="command", required=True)
     admin = commands.add_parser("create-admin", help="Create an administrator account")
     admin.add_argument("--email", required=True)
     admin.add_argument("--name", required=True)
+    commands.add_parser("seed", help="Insert reference categories and campuses (idempotent)")
     args = parser.parse_args(argv)
     if args.command == "create-admin":
         return asyncio.run(_create_admin(args.email, args.name))
+    if args.command == "seed":
+        return asyncio.run(_seed())
     return 2
 
 

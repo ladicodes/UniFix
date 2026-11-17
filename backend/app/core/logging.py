@@ -14,7 +14,7 @@ from app.core.request_context import get_request_context
 _REDACTIONS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+"), r"\1[REDACTED]"),
     (
-        re.compile(r"(?i)\b(token|ticket|refresh_token|access_token|password|signed_xdr)=([^&\s\"']+)"),
+        re.compile(r"(?i)\b(token|ticket|sig|refresh_token|access_token|password|signed_xdr)=([^&\s\"']+)"),
         r"\1=[REDACTED]",
     ),
     (
