@@ -268,6 +268,8 @@ Behaviour:
 
 ### Issue 5 — Wallets
 
+*Implemented in migration `0005` as designed; `wallet_challenges` also stores `network`.*
+
 **wallets**
 `id, user_id FK, network (testnet), address char(56), verified_at, is_primary bool, created_at, revoked_at NULL`.
 Constraints: `UNIQUE (network, address) WHERE revoked_at IS NULL`; `UNIQUE (user_id, network) WHERE is_primary AND revoked_at IS NULL`.

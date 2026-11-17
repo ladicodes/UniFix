@@ -408,6 +408,8 @@ Implementation notes (Issue #3):
 
 ## 8. Wallets — Issue 5
 
+**Implemented.** Errors: `400 INVALID_WALLET_ADDRESS` (StrKey checksum), `400 CHALLENGE_INVALID` (expired, used, or issued for another user/address/network; a challenge is consumed by the first verification attempt), `400 INVALID_SIGNATURE`, `400 WALLET_ACCOUNT_NOT_FOUND` (fund the account with XLM first), `409 WALLET_IN_USE`, `409 WALLET_IN_ESCROW`, `429` (challenge rate limit), `503 CHAIN_UNAVAILABLE` / `503 ESCROW_NOT_CONFIGURED`. `User` gains `wallet_address` and `wallet_verified`. In `GET /wallets`, `account_exists` and `has_escrow_trustline` are `null` when Horizon is unreachable.
+
 | Method | Path | Body → Response |
 |---|---|---|
 | POST | `/wallets/challenge` | `{address}` → `{message, nonce, expires_at}` |

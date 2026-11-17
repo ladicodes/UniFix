@@ -57,6 +57,23 @@ jobs:
       - name: Tests (PostgreSQL 16)
         run: uv run pytest -q
 
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend/contracts
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Toolchain (from rust-toolchain.toml, incl. wasm32v1-none)
+        run: rustup show active-toolchain || rustup toolchain install
+      - name: Contract tests
+        run: cargo test --locked
+      - name: Release wasm builds (production and short-windows test build)
+        run: |
+          cargo build --locked --release --target wasm32v1-none
+          cargo build --locked --release --target wasm32v1-none --features short-windows
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 15

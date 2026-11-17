@@ -20,6 +20,7 @@ from app.modules.uploads import policy as upload_policy
 from app.modules.uploads.models import FilePurpose
 from app.modules.uploads.router import router as uploads_router
 from app.modules.users.router import router as users_router
+from app.modules.wallets.router import router as wallets_router
 
 router = APIRouter()
 for module_router in (
@@ -34,6 +35,7 @@ for module_router in (
     requests_router,
     quotes_router,
     bookings_router,
+    wallets_router,
 ):
     router.include_router(module_router)
 

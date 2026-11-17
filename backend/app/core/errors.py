@@ -102,6 +102,22 @@ class RateLimited(AppError):
         super().__init__(detail, headers={"Retry-After": str(max(1, retry_after_seconds))})
 
 
+class BadGateway(AppError):
+    """An upstream dependency (e.g. Stellar RPC) returned an error. No state was changed."""
+
+    status_code = 502
+    code = "UPSTREAM_ERROR"
+    default_detail = "An upstream service returned an error. Nothing was changed; please retry."
+
+
+class ServiceUnavailable(AppError):
+    """An upstream dependency is unreachable or a feature is not configured. No state was changed."""
+
+    status_code = 503
+    code = "SERVICE_UNAVAILABLE"
+    default_detail = "The service is temporarily unavailable. Nothing was changed; please retry."
+
+
 def _envelope(
     status_code: int,
     detail: str,
@@ -173,6 +189,8 @@ def error_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
         415: "Unsupported media type",
         422: "Validation failed",
         429: "Rate limited",
+        502: "Upstream (Stellar) error; nothing changed",
+        503: "Upstream unavailable or feature not configured; nothing changed",
     }
     return {
         code: {"model": ErrorResponse, "description": descriptions.get(code, "Error")}

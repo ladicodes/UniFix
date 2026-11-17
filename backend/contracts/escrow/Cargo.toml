@@ -1,0 +1,20 @@
+[package]
+name = "unifix-escrow"
+version = "1.0.0"
+edition = "2021"
+publish = false
+description = "UniFix single-payment escrow between a customer and a professional"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+doctest = false
+
+[features]
+# Test-only build for the testnet smoke run: deadline bounds in minutes instead of days.
+short-windows = []
+
+[dependencies]
+soroban-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }

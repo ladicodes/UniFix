@@ -14,6 +14,7 @@ from app.core.errors import Forbidden, Unauthorized
 from app.modules.auth import service as auth_service
 from app.modules.auth.context import AuthContext
 from app.modules.chat.hub import ConversationHub
+from app.modules.stellar.context import StellarContext
 from app.modules.users.models import Role
 
 _bearer = HTTPBearer(
@@ -102,3 +103,11 @@ def get_hub(request: Request) -> ConversationHub:
 
 
 HubDep = Annotated[ConversationHub, Depends(get_hub)]
+
+
+def get_stellar(request: Request) -> StellarContext:
+    stellar: StellarContext = request.app.state.stellar
+    return stellar
+
+
+StellarDep = Annotated[StellarContext, Depends(get_stellar)]

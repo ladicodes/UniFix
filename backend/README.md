@@ -54,6 +54,20 @@ uv run pytest -q                           # real PostgreSQL via TEST_DATABASE_U
 - The test suite **migrates and truncates** the database named in `TEST_DATABASE_URL`. It refuses to run unless the database name contains `test`.
 - After changing routes or schemas, regenerate the schema with `uv run python -m scripts.export_openapi` and commit `openapi.json`.
 
+## Stellar escrow (testnet)
+
+The Soroban contract lives in `contracts/escrow` (Rust, soroban-sdk 29). It needs the `wasm32v1-none` target and the Stellar CLI (`brew install stellar-cli`).
+
+```bash
+cd contracts && cargo test                        # contract unit + randomised invariant tests
+stellar contract build                            # production wasm
+stellar contract build --features short-windows   # test-only build (deadline bounds in minutes)
+cd .. && uv run python -m scripts.testnet deploy  # throwaway keys, test asset, three deployments
+uv run python -m scripts.testnet smoke            # every contract path on testnet, prints tx hashes
+```
+
+Set `ESCROW_CONTRACT_ID`, `ESCROW_ID_SECRET`, `STELLAR_OPERATOR_ADDRESS` and `STELLAR_OPERATOR_SECRET` to enable payments. At startup the API checks that the token contract matches `Asset(code, issuer)` and exists on the network, and that the contract's operator and review window match the configuration. Deployment details and smoke-run transactions are in STELLAR_ESCROW_DESIGN §13.
+
 ## Docker
 
 ```bash

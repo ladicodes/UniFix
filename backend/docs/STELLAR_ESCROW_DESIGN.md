@@ -1,6 +1,6 @@
 # UniFix — Stellar Wallets and Soroban Escrow Design
 
-Status: **Design for review, revision 3 (2026-11-17). Not implemented.** Implemented by Issues 5 (contract + wallets), 6 (funding, completion, release, refunds, reconciliation, keeper) and 7 (disputes, arbitration).
+Status: revision 3 (2026-11-17). **Issue 5 implemented and deployed on testnet (§13).** Issues 6 (funding, completion, release, refunds, reconciliation, keeper) and 7 (disputes, arbitration) build on it.
 
 Network: **Stellar testnet** (`Test SDF Network ; September 2015`). Every operation is a real testnet transaction. Nothing is simulated or presented as settled before on-chain confirmation.
 
@@ -434,3 +434,41 @@ Listed for Victor in [API_CONTRACT.md §13](API_CONTRACT.md#13-frontend-integrat
 - **Open, with recommendations:** D11 arbiter custody (human-held wallet; multisig before real value); D12 operator co-signature on `fund`; D13 asset (Circle testnet USDC, verified); D15 no fee; D16b keeper auto-finalizes undisputed timeouts; D16c windows (3-day service grace, 72 h review); P1 dispute fallback (F-A for the MVP, F-D optional, F-B or F-C before real value).
 
 Post-MVP: multisig admin and arbiter; live FX.
+
+## 13. Testnet deployment and verification (Issue 5, 2026-11-17)
+
+Deployed with `uv run python -m scripts.testnet deploy` (throwaway Friendbot-funded keys; the record and keys stay in the gitignored `var/testnet/deployment.json`).
+
+| Deployment | Contract ID | Token | Purpose |
+|---|---|---|---|
+| `usdc` | `CD5ARDVPAQ26SL7BZHLOKAG2T4CBAAQN47Y2QEPX2KEGSJZYAX2JQVHG` | Circle testnet USDC (`CBIELTK6…DAMA`) | Frontend demos; startup asset check passes against it |
+| `test` | `CCW6AN4HJEY4W3ETAJKBRE5CIARWW6SAN4D3QOBKA6GBD35RU3RY5U7P` | UniFix test asset `UFXT` (mintable) | Automated E2E |
+| `short` | `CD65GZ4AH23Y7QZPCISGPP7EGXCEHYV6JZOYLOCPDWSRGGEC3XAX7HLI` | `UFXT` | **Test-only `short-windows` build** (deadline bounds in minutes) for real-time timeout paths |
+
+- Wasm SHA-256: production `39fa48c797795dc67915fbfdfd0b407aa8287d4e5d2f92863c1744dac209d45e`; short-windows `ea8e80018628f52a26be2a3a1b946f6d6a6ba215fcce67cfb1836e9ae872ad64`. soroban-sdk 29.0.1, `wasm32v1-none`.
+- The admin and arbiter of these testnet deployments are throwaway keys. Before any real value they must be human-held (D11) and multisig (§4.4).
+- **P1:** F-A applies (no automatic settlement of disputed funds); F-D was not approved, so `settle_mutual` is not in this contract.
+
+**Smoke run** (`uv run python -m scripts.testnet smoke`), which drives the backend's own `RpcGateway` (simulate → operator auth-entry signing → assemble → submit → confirm → `getEvents` decode):
+
+| Step | Transaction |
+|---|---|
+| Fund (operator auth entry signed by the backend adapter) | [`f74f47e11de0…`](https://stellar.expert/explorer/testnet/tx/f74f47e11de0fc8a643d9c10a5001c7acd2eaaeaffdbb97ddeecce6efe3eb377) |
+| submit_completion | [`902a3667ad99…`](https://stellar.expert/explorer/testnet/tx/902a3667ad992db2a753d695a57c69e6452a7f8382708cb8970a3c4f69e81479) |
+| release (customer) | [`11032a8be0c5…`](https://stellar.expert/explorer/testnet/tx/11032a8be0c59d526bb49859677a8cba27b96f033eb04b05fb12b96792562ec4) |
+| fund → refund (professional) | [`dd292356ff52…`](https://stellar.expert/explorer/testnet/tx/dd292356ff52f3bc5ce416d722fcc561502f88fc7009b814dd8fa241e6d0eb5c) |
+| open_dispute (customer) | [`735157c7e69c…`](https://stellar.expert/explorer/testnet/tx/735157c7e69cec5da07098d4894d27422568d3b427a1d7b471778102e9fbba35) |
+| resolve, 30 % to the professional | [`67e820d78069…`](https://stellar.expert/explorer/testnet/tx/67e820d780691b65e50e1e0daa08f83a4d7239f00a9450fe0276b2f08bed0abe) |
+| open_dispute (professional) | [`76871081ba19…`](https://stellar.expert/explorer/testnet/tx/76871081ba198012da51608f3f1a542eaf04da86ccf680d4e09937da52db1941) |
+| customer concedes (release while disputed) | [`e9b7d6d96b47…`](https://stellar.expert/explorer/testnet/tx/e9b7d6d96b47b51139b5a991f38340f0fcd1a65d1ca5614b756577345a8e78a4) |
+| finalize_expired → timeout refund (short-windows build) | [`ff337fe90312…`](https://stellar.expert/explorer/testnet/tx/ff337fe90312a99fbafdbb51fa707e5914ca970388b23aeab7a9b0f7e83937bc) |
+| finalize_expired → auto-release (short-windows build) | [`ffed24c5d572…`](https://stellar.expert/explorer/testnet/tx/ffed24c5d5727202d1b20a8252ea18c8ad7c0faab152fce8edaff0f4e2dc94ad) |
+
+Refused on-chain during simulation, as required: a second `release` (`InvalidState`), `resolve` on an undisputed escrow (`InvalidState`), `finalize_expired` on a disputed escrow (`InvalidState`), and `finalize_expired` before the deadline (`NotExpired`).
+
+**Implementation notes:**
+
+- `settled_by` is a plain enum with an `Unsettled` variant (contract enums cannot nest in `Option` in the SDK's XDR conversions). The API maps `Unsettled` to `null`.
+- `finalize_expired` emits one `expired` event (with the resulting `status`) rather than `released`/`refunded`.
+- Chain events are keyed by `(tx_hash, event_index)` where `event_index` comes from the RPC event ID. Both ingestion paths (transaction confirmation and the cursor scan) read events through `getEvents`, so the key is identical (§10).
+- SEP-53 verification passes the published SEP-53 test vector and generated keys. **Still to do before Issue 5 closes:** a signature captured from a real Freighter wallet (it needs a browser wallet, which this environment does not have).

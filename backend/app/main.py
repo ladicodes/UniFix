@@ -18,6 +18,7 @@ from app.core.middleware import RequestContextMiddleware
 from app.modules.chat import service as chat_service
 from app.modules.chat.hub import ConversationHub
 from app.modules.quotes import service as quotes_service
+from app.modules.stellar.context import StellarContext, build_stellar, startup_check
 
 CORS_ALLOWED_HEADERS = [
     "Authorization",
@@ -29,14 +30,23 @@ CORS_ALLOWED_HEADERS = [
 CORS_EXPOSED_HEADERS = ["X-Total-Count", "X-Next-Offset", "X-Request-ID", "Retry-After"]
 
 
-def create_app(settings: Settings | None = None, *, services: Services | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    *,
+    services: Services | None = None,
+    stellar: StellarContext | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     services = services or build_services(settings)
+    stellar = stellar or build_stellar(settings)
     configure_logging(settings.log_level, json_output=settings.log_json)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        await startup_check(stellar)
         yield
+        if stellar.gateway is not None:
+            await stellar.gateway.close()
         await services.engine.dispose()
 
     app = FastAPI(
@@ -50,6 +60,7 @@ def create_app(settings: Settings | None = None, *, services: Services | None = 
     )
     app.state.services = services
     app.state.chat_hub = ConversationHub()
+    app.state.stellar = stellar
     chat_service.register_quotes_lookup(quotes_service.conversation_quotes_hook(services))
     register_error_handlers(app)
 

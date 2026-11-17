@@ -246,3 +246,29 @@ async def relogin(client: httpx.AsyncClient, account: Account) -> Account:
     return Account(
         id=account.id, email=account.email, access_token=response.json()["access_token"], refresh_cookie=""
     )
+
+
+async def link_wallet(
+    client: httpx.AsyncClient, chain: Any, account: Account, keypair: Any | None = None, *, balance: int = 0
+) -> Any:
+    """Create the account on the chain double, then link it through the real SEP-53 flow."""
+    import base64
+
+    from stellar_sdk import Keypair
+
+    keypair = keypair or Keypair.random()
+    if keypair.public_key not in chain.accounts:
+        chain.create_account(keypair.public_key, balance=balance)
+    challenge = await client.post(
+        f"{API}/wallets/challenge", json={"address": keypair.public_key}, headers=account.headers
+    )
+    assert challenge.status_code == 201, challenge.text
+    message = challenge.json()["message"]
+    signature = base64.b64encode(keypair.sign_message(message)).decode()
+    linked = await client.post(
+        f"{API}/wallets",
+        json={"address": keypair.public_key, "message": message, "signature": signature},
+        headers=account.headers,
+    )
+    assert linked.status_code == 200, linked.text
+    return keypair

@@ -13,6 +13,7 @@ from app.modules.quotes.models import Agreement, Quote
 from app.modules.requests.models import ServiceRequest
 from app.modules.uploads.models import StoredFile
 from app.modules.users.models import User
+from app.modules.wallets.models import Wallet, WalletChallenge
 
 __all__ = [
     "Agreement",
@@ -38,5 +39,7 @@ __all__ = [
     "StoredFile",
     "User",
     "UserToken",
+    "Wallet",
+    "WalletChallenge",
     "WebSocketTicket",
 ]

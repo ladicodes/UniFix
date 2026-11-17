@@ -30,6 +30,8 @@ class UserOut(ResponseModel):
     avatar_url: str | None = None
     campus: CampusOut | None = None
     professional_id: uuid.UUID | None = None
+    wallet_address: str | None = None
+    wallet_verified: bool = False
 
     @classmethod
     def from_user(

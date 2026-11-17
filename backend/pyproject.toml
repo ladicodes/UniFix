@@ -19,6 +19,7 @@ dependencies = [
     "python-multipart>=0.0.20,<0.1",
     "boto3>=1.38,<2",
     "rfc8785>=0.1.4,<0.2",
+    "stellar-sdk>=13",
 ]
 
 [dependency-groups]
