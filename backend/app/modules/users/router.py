@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter
 
 from app.api.deps import AdminDep, CallerDep, ServicesDep, SessionDep
+from app.api.presenters import user_out
 from app.core.errors import error_responses
 from app.modules.users import service
 from app.modules.users.schemas import AdminStatusChangeIn, UpdateMeIn, UserOut
@@ -13,15 +14,15 @@ router = APIRouter(tags=["users"])
 
 
 @router.get("/auth/me", responses=error_responses(401, 403), summary="The current user")
-async def get_me(caller: CallerDep) -> UserOut:
-    return UserOut.from_user(caller.user)
+async def get_me(caller: CallerDep, session: SessionDep) -> UserOut:
+    return await user_out(session, caller.user)
 
 
 @router.patch(
     "/auth/me", responses=error_responses(401, 403, 409, 422), summary="Update the current user's profile"
 )
 async def update_me(data: UpdateMeIn, caller: CallerDep, session: SessionDep) -> UserOut:
-    return UserOut.from_user(await service.update_me(session, caller, data))
+    return await user_out(session, await service.update_me(session, caller, data))
 
 
 @router.patch(
@@ -33,4 +34,4 @@ async def update_me(data: UpdateMeIn, caller: CallerDep, session: SessionDep) ->
 async def change_user_status(
     user_id: uuid.UUID, data: AdminStatusChangeIn, admin: AdminDep, session: SessionDep, services: ServicesDep
 ) -> UserOut:
-    return UserOut.from_user(await service.change_status(session, services, admin, user_id, data))
+    return await user_out(session, await service.change_status(session, services, admin, user_id, data))

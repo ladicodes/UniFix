@@ -1,7 +1,7 @@
 # UniFix API Contract (for the frontend)
 
 Audience: Victor (frontend). You should not need to read backend code to integrate.
-Status: **Revision 3 (2026-11-17).** §1–§4 are **implemented** (Issue #1). Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
+Status: **Revision 3 (2026-11-17).** §1–§7 are **implemented** (Batch 1: Issues #1, #2, #4, #3). §8 onward is Batch 2 and remains the planned contract. Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
 
 Revision 3 changes:
 
@@ -152,7 +152,7 @@ Login lockout: 5 failed attempts for an email (registered or not) lock that emai
 
 Timestamps are returned as RFC 3339 with an explicit `+00:00` offset (UTC).
 
-The `professional` object in `register` (`category_slug, headline, bio, area, coverage, years_experience, starting_price_minor, currency, availability, skills`) is processed from Issue 2. Before Issue 2 it is rejected with 422, so the frontend should not send it until then.
+The `professional` object in `register` (`category_slug, headline, bio, area, coverage, years_experience, starting_price_minor, currency, availability, skills`) is processed from Issue 2. It is processed atomically: if the profile is invalid (e.g. unknown category), no account is created. Sending it with role `CUSTOMER` is a 422.
 
 ### 4.6 Frontend session flow
 
@@ -174,6 +174,8 @@ Use `fetch(url, { credentials: "include" })` for the four cookie routes. Sending
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/campuses?country&q` | `Campus[]` = `{id, slug, name, short_name, city, state, country}` |
+| POST / PATCH | `/admin/campuses[/{id}]` | Admin: create / update / deactivate a campus |
+| POST / PATCH | `/admin/categories[/{id}]` | Admin: create / update / disable a category (one level of nesting) |
 | GET | `/categories` | `Category[]` = `{id, slug, name, parent_id, description}` |
 | GET | `/professionals` | Query: `q, category, campus, city, availability (NOW\|TODAY), min_rating, verified_only, sort (BEST\|NEAREST\|MOST_JOBS\|EXPERIENCE), lat, lng, limit, offset` |
 | GET | `/professionals/{id}` | Public `Professional` |
@@ -202,7 +204,29 @@ Professional = {
   joined_at;
 }
 FileRef = { id; url; signed_url: string | null; name; content_type; size; width: number | null; height: number | null; purpose }
+ProfessionalPrivateOut = Professional & { is_listed: boolean; latitude: string | null; longitude: string | null;
+                                          verifications: { id; type; status; note; files: FileRef[]; submitted_at;
+                                                           reviewed_at; rejection_reason }[] }
 ```
+
+Implementation notes (Issue #2):
+
+- **Discovery filters:**
+  - `category` matches the primary category **or** any additional category; a parent slug also matches its sub-categories.
+  - Unknown `category`/`campus` slugs return `[]`.
+  - `availability=TODAY` includes `NOW`.
+- **Search:** `q` runs a full-text search over headline, bio, area, city and skills, plus a name match.
+- **Sorting:**
+  - `BEST` is a Bayesian average, so 4.6★ from 40 reviews outranks 5★ from 2.
+  - `NEAREST` uses `lat`/`lng`, else the `campus` filter's centroid, else the caller's campus. Distance is measured to the professional's approximate point, or else to their nearest served campus.
+- **Verification:**
+  - `verification_status` becomes `VERIFIED` once the **IDENTITY** check is approved.
+  - `PENDING` while any check awaits review, `REJECTED` when all submitted checks were rejected.
+  - IDENTITY and TRADE require at least one `VERIFICATION_DOCUMENT` upload; PHONE may have none (reviewed manually).
+  - Rejection requires a reason.
+- **Locations:** professional coordinates are rounded to 2 decimals (~1 km) before storage and only appear in `ProfessionalPrivateOut`.
+- **`User` additions:** `User` now also has `avatar_url`, `campus` and `professional_id`. `PATCH /auth/me` accepts `campus_id` and `avatar_file_id` (an `AVATAR` upload of yours); `null` clears either.
+- **`GET /files/{id}` response headers:** `Content-Security-Policy: default-src 'none'; sandbox`; `Content-Disposition: attachment` for PDFs; `Cache-Control: private, no-store` for private files.
 
 `rating` and the breakdown values are display averages (`number`, 2 decimals). They are not money.
 
@@ -212,6 +236,15 @@ FileRef = { id; url; signed_url: string | null; name; content_type; size; width:
 |---|---|---|---|
 | `AVATAR`, `PORTFOLIO` | jpeg/png/webp | 5 MB | public |
 | `REQUEST_MEDIA`, `MESSAGE_ATTACHMENT`, `COMPLETION_EVIDENCE`, `DISPUTE_EVIDENCE` | jpeg/png/webp | 10 MB | private |
+
+Who may upload:
+
+- `PORTFOLIO`, `VERIFICATION_DOCUMENT` and `COMPLETION_EVIDENCE`: professionals.
+- `REQUEST_MEDIA`: customers.
+- `MESSAGE_ATTACHMENT`: both customers and professionals.
+- `AVATAR`: anyone.
+
+Uploads are rate-limited per user (`429`). The type is detected from the file's bytes; a mismatched or unreadable file returns `415`.
 | `VERIFICATION_DOCUMENT` | jpeg/png/webp/pdf | 10 MB | owner + admins only |
 
 - Images are re-encoded, which strips EXIF and GPS.
@@ -224,7 +257,7 @@ FileRef = { id; url; signed_url: string | null; name; content_type; size; width:
 | GET | `/conversations` | `limit, offset` | `ConversationSummary[]` |
 | POST | `/conversations` | `{professional_id}` | `201 Conversation` (or `200` with the existing direct thread) |
 | GET | `/conversations/{id}` | `messages_limit` | `ConversationDetail` |
-| GET | `/conversations/{id}/messages` | `before, limit` | `Message[]` |
+| GET | `/conversations/{id}/messages` | `before` or `after` (message id), `limit` ≤ 200 | `Message[]`, oldest first. `before` pages back; `after` returns what you missed while disconnected |
 | POST | `/conversations/{id}/messages` | `{body, attachment_file_id?, client_message_id?}` | `201 Message` |
 | POST | `/conversations/{id}/read` | `{last_read_message_id}` | `204` |
 | POST | `/conversations/{id}/report` | `{reason, details?, message_id?}` | `201` |
@@ -266,6 +299,7 @@ The access token is never put in a WebSocket URL.
 
 | Code | Meaning | Client action |
 |---|---|---|
+| `1013` | Too slow to read events | Reconnect with a new ticket and fetch `GET …/messages?after=<last id>` |
 | `4000` | Re-authentication due (max lifetime) | New ticket, reconnect |
 | `4401` | Ticket invalid, expired or already used, or session revoked | Refresh the access token, new ticket, reconnect |
 | `4403` / `4404` | Origin rejected / no access | Do not retry |
@@ -285,6 +319,23 @@ Server → client frames:
 ```
 
 Client → server: `{"type": "TYPING"}`, `{"type": "READ", "last_read_message_id": "…"}`, `{"type": "PING"}`, `{"type": "CALL_OFFER"|"CALL_ANSWER"|"CALL_ICE"|"CALL_END", "session_id": "…", "payload": {…}}`. Send chat messages over REST.
+
+Implementation notes (Issue #4):
+
+- **Delivery and ordering.**
+  - Messages are persisted before they are delivered.
+  - Within a conversation, message order is the commit order.
+  - After any reconnect, fetch `?after=<last message id you saw>` to catch up. The socket is best-effort and history is authoritative.
+- **Error frames.** A bad frame never closes the socket. The server replies `{"type": "ERROR", "data": {"code", "detail"}}`, with codes such as `UNKNOWN_TYPE`, `INVALID_FRAME`, `INVALID_SIGNAL` and `CALL_NOT_ACTIVE`.
+- **Who can start a conversation.** Only customers can start one, and only with a listed, active professional. A conversation started again returns `200` with the existing thread.
+- **Unread state and read receipts.** `unread` and `unread_for` count messages from the *other* participant (or system messages) after your read pointer. `read_at` on your own messages is set once the other participant's pointer passes them.
+- **Attachments.** `attachment_file_id` must be your own `MESSAGE_ATTACHMENT` upload. Both participants can then read it (via Bearer or its `signed_url`); nobody else can.
+- **Calls.**
+  - Lifecycle: `POST /calls/sessions` (`RINGING`) → caller sends `CALL_OFFER` → callee sends `CALL_ANSWER` (`ACTIVE`) → `CALL_ICE` from both → `CALL_END` (or `POST /calls/sessions/{id}/end`).
+  - If the callee ends a ringing call it becomes `DECLINED`. Unanswered calls become `MISSED` after 45 s.
+  - Only one live call per conversation (`409 CALL_IN_PROGRESS`). Signal payloads are capped at 16 KB.
+- **Rate limits.** 60 messages per minute per user; 30 inbound WebSocket frames per 10 s per connection (`4429`).
+- **Deployment limit.** Real-time fan-out is in-process, so the API must run as **one instance**. Several instances need the PostgreSQL LISTEN/NOTIFY hub described in ARCHITECTURE §9.
 
 Calls: the backend handles session state and relays signaling only. `ice_servers` are public STUN servers. No TURN server is provided.
 
@@ -334,6 +385,26 @@ AllowedAction = "FUND"|"CANCEL"|"START"|"SUBMIT_COMPLETION"|"APPROVE_RELEASE"|"R
 - `total_minor` is computed by the server (`labour_minor + materials_minor`). Do not send it.
 - **Quotes are never edited.** A new `POST /quotes` creates a new version and supersedes the old one. An accepted quote and its agreement are immutable.
 - Render booking buttons from `allowed_actions`.
+
+Implementation notes (Issue #3):
+
+- **Accepting a quote.** `POST /quotes/{id}/accept` takes an optional body `{service_address}`. It defaults to the request's `location_text`. The professional sees `booking.address` only from `FUNDED` onwards.
+- **Idempotency.** Accept honours `Idempotency-Key`: a replay returns the original `201` with `Idempotent-Replayed: true`; the same key with a different body returns `409 IDEMPOTENCY_KEY_REUSED`.
+- **Quote fields.**
+  - `QuoteOut` adds `valid_until` (default 7 days, at most 30) and `expired`. Accepting an expired quote returns `409 QUOTE_EXPIRED`.
+  - Sending a quote requires a **verified email** (`403 EMAIL_NOT_VERIFIED`).
+  - A new quote supersedes your pending one (`SUPERSEDED`). There is at most one pending quote per conversation.
+- **One active booking per conversation.** Quotes and acceptances are refused with `409 ACTIVE_BOOKING_EXISTS` while one exists.
+- **Competing quotes on a request.** Accepting one quote on a service request rejects the other pending quotes on that request and marks the request `BOOKED`.
+- **Payment window.** `BookingOut` adds `payment_due_by` (created + 7 days), `cancellation_reason` and `service_request_id`. An unpaid booking past `payment_due_by` becomes `CANCELLED`, with a `SYSTEM` timeline entry.
+- **Cancellation.** Cancelling before payment returns a request-linked booking's request to `OPEN`.
+- **Allowed actions in Batch 1:** `CANCEL` (both parties, while `PENDING_PAYMENT`) and `START` (professional, once `FUNDED`). `FUND` and the other money actions appear in Batch 2. Batch 1 has no route that sets a booking to `FUNDED` or any later money state.
+- **Request privacy.**
+  - `GET /service-requests/{id}` and the feed never include `location_text`, coordinates or customer contact details for professionals.
+  - The owner's view (`ServiceRequestOwnerOut`) adds `location_text`, `latitude`, `longitude`, `target_professional_id` and `conversation_ids`.
+  - Request photos (`REQUEST_MEDIA`) are visible to the owner, admins and eligible or responding professionals only.
+- **Feed rules.** Open, unexpired (14-day) requests in your categories (a parent category includes its sub-categories). A campus-bound request needs a campus you serve. A targeted request is shown only to its target.
+- **Cancellation requests** (`/bookings/{id}/cancellation-requests`) are Batch 2 (Issue 6), because they only apply after funding.
 
 ## 8. Wallets — Issue 5
 

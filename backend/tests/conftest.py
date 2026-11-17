@@ -23,6 +23,7 @@ from app.core.clock import FrozenClock
 from app.core.config import Environment, Settings
 from app.core.container import Services, build_services
 from app.main import create_app
+from app.seed import seed
 from tests.support import ALLOWED_ORIGIN, API_BASE_URL, RecordingEmailSender
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -98,6 +99,8 @@ def make_settings(database_url: str, **overrides: object) -> Settings:
         "auth_ip_rate_limit_per_minute": 10_000,
         "email_action_rate_limit_per_hour": 10_000,
         "frontend_base_url": ALLOWED_ORIGIN,
+        "local_storage_dir": str(BACKEND_DIR / "var" / "test-uploads"),
+        "upload_rate_limit_per_hour": 10_000,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[arg-type]
@@ -131,11 +134,40 @@ async def services(
 
 
 @pytest.fixture
+async def seeded(services: Services) -> Services:
+    """Reference categories and campuses (app.seed), as a deployment would have."""
+    async with services.session_factory() as session:
+        await seed(session)
+    return services
+
+
+@pytest.fixture
 async def client(services: Services) -> AsyncIterator[httpx.AsyncClient]:
     app = create_app(services.settings, services=services)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url=API_BASE_URL) as http:
         yield http
+
+
+@pytest.fixture
+async def live_server(services: Services) -> AsyncIterator[str]:
+    """A real uvicorn server (same event loop) for WebSocket tests. Yields its base URL."""
+    import asyncio
+
+    import uvicorn
+
+    app = create_app(services.settings, services=services)
+    config = uvicorn.Config(
+        app, host="127.0.0.1", port=0, log_level="warning", lifespan="off", ws="websockets-sansio"
+    )
+    server = uvicorn.Server(config)
+    task = asyncio.create_task(server.serve())
+    while not server.started:  # noqa: ASYNC110  (uvicorn exposes no 'started' event)
+        await asyncio.sleep(0.01)
+    port = server.servers[0].sockets[0].getsockname()[1]
+    yield f"127.0.0.1:{port}"
+    server.should_exit = True
+    await task
 
 
 @pytest.fixture

@@ -45,7 +45,7 @@ def test_every_route_declares_response_model_and_error_responses(migrated_databa
         for method, operation in item.items()
         if path.startswith("/api/v1/")
     ]
-    assert len(operations) >= 10  # guard against silently checking nothing
+    assert len(operations) > 50  # guard against silently checking nothing
     for path, method, operation in operations:
         label = f"{method.upper()} {path}"
         assert operation.get("summary"), f"{label} has no summary"

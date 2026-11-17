@@ -86,6 +86,15 @@ async def revoke_all(
     )
 
 
+async def is_live(session: AsyncSession, family_id: uuid.UUID, user_id: uuid.UUID, now: datetime) -> bool:
+    """True while the login is unrevoked, unexpired and its user is active (used by WebSockets)."""
+    found = await repository.get_family_and_user(session, family_id)
+    if found is None:
+        return False
+    family, user = found
+    return family.user_id == user_id and family.is_live(now) and user.is_active
+
+
 def ip_hint(ip: str | None) -> str | None:
     """Coarse client network for the session list (IPv4 /16, IPv6 /32)."""
     if not ip:

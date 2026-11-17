@@ -12,6 +12,7 @@ from app.core.db import create_engine, create_session_factory
 from app.core.email import EmailSender, build_email_sender
 from app.core.ratelimit import RateLimiter
 from app.core.security import AccessTokens, PasswordHashing
+from app.core.storage import ObjectStorage, build_storage
 
 
 @dataclass
@@ -24,6 +25,7 @@ class Services:
     access_tokens: AccessTokens
     email: EmailSender
     rate_limiter: RateLimiter
+    storage: ObjectStorage
 
 
 def build_services(settings: Settings, *, clock: Clock | None = None) -> Services:
@@ -38,4 +40,5 @@ def build_services(settings: Settings, *, clock: Clock | None = None) -> Service
         access_tokens=AccessTokens(settings),
         email=build_email_sender(settings),
         rate_limiter=RateLimiter(session_factory),
+        storage=build_storage(settings),
     )
