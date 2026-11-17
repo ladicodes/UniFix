@@ -13,6 +13,7 @@ from app.core.container import Services
 from app.core.errors import Forbidden, Unauthorized
 from app.modules.auth import service as auth_service
 from app.modules.auth.context import AuthContext
+from app.modules.chat.hub import ConversationHub
 from app.modules.users.models import Role
 
 _bearer = HTTPBearer(
@@ -93,3 +94,11 @@ async def require_cookie_csrf(
 
 
 CsrfDep = Depends(require_cookie_csrf)
+
+
+def get_hub(request: Request) -> ConversationHub:
+    hub: ConversationHub = request.app.state.chat_hub
+    return hub
+
+
+HubDep = Annotated[ConversationHub, Depends(get_hub)]

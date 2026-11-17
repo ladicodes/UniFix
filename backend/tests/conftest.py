@@ -150,5 +150,26 @@ async def client(services: Services) -> AsyncIterator[httpx.AsyncClient]:
 
 
 @pytest.fixture
+async def live_server(services: Services) -> AsyncIterator[str]:
+    """A real uvicorn server (same event loop) for WebSocket tests. Yields its base URL."""
+    import asyncio
+
+    import uvicorn
+
+    app = create_app(services.settings, services=services)
+    config = uvicorn.Config(
+        app, host="127.0.0.1", port=0, log_level="warning", lifespan="off", ws="websockets-sansio"
+    )
+    server = uvicorn.Server(config)
+    task = asyncio.create_task(server.serve())
+    while not server.started:  # noqa: ASYNC110  (uvicorn exposes no 'started' event)
+        await asyncio.sleep(0.01)
+    port = server.servers[0].sockets[0].getsockname()[1]
+    yield f"127.0.0.1:{port}"
+    server.should_exit = True
+    await task
+
+
+@pytest.fixture
 def unique_email() -> str:
     return f"user-{uuid.uuid4().hex[:12]}@example.com"

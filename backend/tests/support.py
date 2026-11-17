@@ -173,3 +173,32 @@ async def register_professional(
     )
     me = (await client.get(f"{API}/auth/me", headers=account.headers)).json()
     return account, me["professional_id"]
+
+
+# ---------------------------------------------------------------- Issue 4 helpers
+
+
+async def open_conversation(client: httpx.AsyncClient, customer: Account, professional_id: str) -> str:
+    response = await client.post(
+        f"{API}/conversations", json={"professional_id": professional_id}, headers=customer.headers
+    )
+    assert response.status_code in {200, 201}, response.text
+    return str(response.json()["id"])
+
+
+async def send(
+    client: httpx.AsyncClient, account: Account, conversation_id: str, body: str, **extra: Any
+) -> httpx.Response:
+    return await client.post(
+        f"{API}/conversations/{conversation_id}/messages",
+        json={"body": body, **extra},
+        headers=account.headers,
+    )
+
+
+async def ticket(client: httpx.AsyncClient, account: Account, conversation_id: str) -> str:
+    response = await client.post(
+        f"{API}/ws/tickets", json={"conversation_id": conversation_id}, headers=account.headers
+    )
+    assert response.status_code == 201, response.text
+    return str(response.json()["ticket"])

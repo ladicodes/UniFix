@@ -93,9 +93,20 @@ class Settings(BaseSettings):
     signed_url_ttl_seconds: int = Field(default=300, ge=30, le=3600)
     upload_rate_limit_per_hour: int = Field(default=120, ge=1)
 
+    webrtc_stun_urls: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["stun:stun.l.google.com:19302"]
+    )
+
     frontend_base_url: str = "http://localhost:3000"
     email_verification_ttl_seconds: int = Field(default=24 * 3600, ge=600)
     password_reset_ttl_seconds: int = Field(default=3600, ge=600)
+
+    @field_validator("webrtc_stun_urls", mode="before")
+    @classmethod
+    def _split_stun(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     @field_validator("cors_origins", mode="before")
     @classmethod
