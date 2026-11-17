@@ -257,7 +257,7 @@ Uploads are rate-limited per user (`429`). The type is detected from the file's 
 | GET | `/conversations` | `limit, offset` | `ConversationSummary[]` |
 | POST | `/conversations` | `{professional_id}` | `201 Conversation` (or `200` with the existing direct thread) |
 | GET | `/conversations/{id}` | `messages_limit` | `ConversationDetail` |
-| GET | `/conversations/{id}/messages` | `before, limit` | `Message[]` |
+| GET | `/conversations/{id}/messages` | `before` or `after` (message id), `limit` ≤ 200 | `Message[]`, oldest first. `before` pages back; `after` returns what you missed while disconnected |
 | POST | `/conversations/{id}/messages` | `{body, attachment_file_id?, client_message_id?}` | `201 Message` |
 | POST | `/conversations/{id}/read` | `{last_read_message_id}` | `204` |
 | POST | `/conversations/{id}/report` | `{reason, details?, message_id?}` | `201` |
@@ -299,6 +299,7 @@ The access token is never put in a WebSocket URL.
 
 | Code | Meaning | Client action |
 |---|---|---|
+| `1013` | Too slow to read events | Reconnect with a new ticket and fetch `GET …/messages?after=<last id>` |
 | `4000` | Re-authentication due (max lifetime) | New ticket, reconnect |
 | `4401` | Ticket invalid, expired or already used, or session revoked | Refresh the access token, new ticket, reconnect |
 | `4403` / `4404` | Origin rejected / no access | Do not retry |
@@ -318,6 +319,23 @@ Server → client frames:
 ```
 
 Client → server: `{"type": "TYPING"}`, `{"type": "READ", "last_read_message_id": "…"}`, `{"type": "PING"}`, `{"type": "CALL_OFFER"|"CALL_ANSWER"|"CALL_ICE"|"CALL_END", "session_id": "…", "payload": {…}}`. Send chat messages over REST.
+
+Implementation notes (Issue #4):
+
+- **Delivery and ordering.**
+  - Messages are persisted before they are delivered.
+  - Within a conversation, message order is the commit order.
+  - After any reconnect, fetch `?after=<last message id you saw>` to catch up. The socket is best-effort and history is authoritative.
+- **Error frames.** A bad frame never closes the socket. The server replies `{"type": "ERROR", "data": {"code", "detail"}}`, with codes such as `UNKNOWN_TYPE`, `INVALID_FRAME`, `INVALID_SIGNAL` and `CALL_NOT_ACTIVE`.
+- **Who can start a conversation.** Only customers can start one, and only with a listed, active professional. A conversation started again returns `200` with the existing thread.
+- **Unread state and read receipts.** `unread` and `unread_for` count messages from the *other* participant (or system messages) after your read pointer. `read_at` on your own messages is set once the other participant's pointer passes them.
+- **Attachments.** `attachment_file_id` must be your own `MESSAGE_ATTACHMENT` upload. Both participants can then read it (via Bearer or its `signed_url`); nobody else can.
+- **Calls.**
+  - Lifecycle: `POST /calls/sessions` (`RINGING`) → caller sends `CALL_OFFER` → callee sends `CALL_ANSWER` (`ACTIVE`) → `CALL_ICE` from both → `CALL_END` (or `POST /calls/sessions/{id}/end`).
+  - If the callee ends a ringing call it becomes `DECLINED`. Unanswered calls become `MISSED` after 45 s.
+  - Only one live call per conversation (`409 CALL_IN_PROGRESS`). Signal payloads are capped at 16 KB.
+- **Rate limits.** 60 messages per minute per user; 30 inbound WebSocket frames per 10 s per connection (`4429`).
+- **Deployment limit.** Real-time fan-out is in-process, so the API must run as **one instance**. Several instances need the PostgreSQL LISTEN/NOTIFY hub described in ARCHITECTURE §9.
 
 Calls: the backend handles session state and relays signaling only. `ice_servers` are public STUN servers. No TURN server is provided.
 
