@@ -29,7 +29,18 @@ async def find_direct(
     session: AsyncSession, customer_id: uuid.UUID, professional_id: uuid.UUID
 ) -> Conversation | None:
     statement = select(Conversation).where(
-        Conversation.customer_id == customer_id, Conversation.professional_id == professional_id
+        Conversation.customer_id == customer_id,
+        Conversation.professional_id == professional_id,
+        Conversation.service_request_id.is_(None),
+    )
+    return (await session.execute(statement)).scalar_one_or_none()
+
+
+async def find_for_request(
+    session: AsyncSession, service_request_id: uuid.UUID, professional_id: uuid.UUID
+) -> Conversation | None:
+    statement = select(Conversation).where(
+        Conversation.service_request_id == service_request_id, Conversation.professional_id == professional_id
     )
     return (await session.execute(statement)).scalar_one_or_none()
 

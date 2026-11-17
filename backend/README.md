@@ -6,6 +6,7 @@ FastAPI + PostgreSQL backend for UniFix, the university service marketplace. The
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Modules, layering, auth, state machines, real-time, testing, deployment |
 | [docs/API_CONTRACT.md](docs/API_CONTRACT.md) | REST and WebSocket contract for the frontend |
+| [docs/FRONTEND_INTEGRATION.md](docs/FRONTEND_INTEGRATION.md) | How to connect the frontend to what Batch 1 implements |
 | [docs/DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md) | Tables, constraints, indexes, migration policy |
 | [docs/STELLAR_ESCROW_DESIGN.md](docs/STELLAR_ESCROW_DESIGN.md) | Escrow contract, trust model, payment flows |
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | The eight issues, order, branches, decisions, risks |

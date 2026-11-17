@@ -42,7 +42,20 @@ class TicketScope(StrEnum):
 class Conversation(UUIDPrimaryKey, CreatedAt, Base):
     __tablename__ = "conversations"
     __table_args__ = (
-        Index("uq_conversations_direct", "customer_id", "professional_id", unique=True),
+        Index(
+            "uq_conversations_direct",
+            "customer_id",
+            "professional_id",
+            unique=True,
+            postgresql_where=text("service_request_id IS NULL"),
+        ),
+        Index(
+            "uq_conversations_request_professional",
+            "service_request_id",
+            "professional_id",
+            unique=True,
+            postgresql_where=text("service_request_id IS NOT NULL"),
+        ),
         Index("ix_conversations_professional_last", "professional_id", "last_message_at"),
         Index("ix_conversations_customer_last", "customer_id", "last_message_at"),
     )
@@ -52,6 +65,9 @@ class Conversation(UUIDPrimaryKey, CreatedAt, Base):
     )
     professional_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("professional_profiles.id", ondelete="RESTRICT"), nullable=False
+    )
+    service_request_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("service_requests.id", ondelete="RESTRICT")
     )
     last_message_at: Mapped[datetime | None] = mapped_column()
     last_message_preview: Mapped[str] = mapped_column(String(140), nullable=False, server_default="")
@@ -87,6 +103,7 @@ class Message(UUIDPrimaryKey, CreatedAt, Base):
         CheckConstraint("char_length(body) <= 4000", name="body_length"),
         CheckConstraint("kind <> 'IMAGE' OR attachment_file_id IS NOT NULL", name="image_has_attachment"),
         CheckConstraint("kind <> 'SYSTEM' OR sender_id IS NULL", name="system_has_no_sender"),
+        CheckConstraint("kind <> 'QUOTE' OR quote_id IS NOT NULL", name="quote_message_has_quote"),
         Index("ix_messages_conversation_seq", "conversation_id", "seq"),
         Index(
             "uq_messages_sender_client_id",
@@ -106,6 +123,7 @@ class Message(UUIDPrimaryKey, CreatedAt, Base):
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     attachment_file_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("files.id", ondelete="RESTRICT"))
+    quote_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("quotes.id", ondelete="RESTRICT"))
     client_message_id: Mapped[uuid.UUID | None] = mapped_column()
 
 

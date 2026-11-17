@@ -202,3 +202,47 @@ async def ticket(client: httpx.AsyncClient, account: Account, conversation_id: s
     )
     assert response.status_code == 201, response.text
     return str(response.json()["ticket"])
+
+
+# ---------------------------------------------------------------- Issue 3 helpers
+
+
+async def verify_email(client: httpx.AsyncClient, outbox: RecordingEmailSender, account: Account) -> None:
+    token = outbox.token_for(account.email, "/verify-email")
+    response = await client.post(f"{API}/auth/verify-email/confirm", json={"token": token})
+    assert response.status_code == 200, response.text
+
+
+def quote_payload(conversation_id: str, **overrides: Any) -> dict[str, Any]:
+    import datetime as _dt
+
+    payload: dict[str, Any] = {
+        "conversation_id": conversation_id,
+        "title": "Replace iPhone 13 screen",
+        "description": "Original-quality screen with 3-month warranty",
+        "labour_minor": 2_500_000,
+        "materials_minor": 1_000_000,
+        "currency": "NGN",
+        "completion_date": (_dt.date.today() + _dt.timedelta(days=3)).isoformat(),
+        "payment_terms": "Single payment held in escrow",
+        "service_method": "PRO_TO_CUSTOMER",
+    }
+    payload.update(overrides)
+    return payload
+
+
+async def category_id(client: httpx.AsyncClient, slug: str) -> str:
+    return next(c["id"] for c in (await client.get(f"{API}/categories")).json() if c["slug"] == slug)
+
+
+async def campus_id(client: httpx.AsyncClient, slug: str) -> str:
+    return next(c["id"] for c in (await client.get(f"{API}/campuses")).json() if c["slug"] == slug)
+
+
+async def relogin(client: httpx.AsyncClient, account: Account) -> Account:
+    """Fresh access token (e.g. after moving the test clock past the 15-minute lifetime)."""
+    response = await login(client, account.email)
+    assert response.status_code == 200, response.text
+    return Account(
+        id=account.id, email=account.email, access_token=response.json()["access_token"], refresh_cookie=""
+    )

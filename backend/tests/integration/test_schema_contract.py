@@ -7,7 +7,6 @@ from pathlib import Path
 
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from fastapi.routing import APIRoute
 from sqlalchemy import create_engine
 
 import app.models  # noqa: F401
@@ -37,13 +36,26 @@ def test_committed_openapi_matches_generated(migrated_database: str) -> None:
 
 
 def test_every_route_declares_response_model_and_error_responses(migrated_database: str) -> None:
-    application = create_app(make_settings(migrated_database))
-    for route in application.routes:
-        if not isinstance(route, APIRoute):
-            continue
-        no_body = route.status_code in {202, 204}
-        assert no_body or route.response_model is not None, f"{route.path} has no response model"
-        if route.path.startswith("/api/v1"):
-            documented_errors = {int(code) for code in route.responses if str(code).startswith(("4", "5"))}
-            assert documented_errors, f"{route.path} documents no error responses"
-            assert route.summary, f"{route.path} has no summary"
+    """Checked on the generated OpenAPI document: FastAPI mounts included routers lazily, so
+    ``app.routes`` alone does not list them."""
+    schema = create_app(make_settings(migrated_database)).openapi()
+    operations = [
+        (path, method, operation)
+        for path, item in schema["paths"].items()
+        for method, operation in item.items()
+        if path.startswith("/api/v1/")
+    ]
+    assert len(operations) > 50  # guard against silently checking nothing
+    for path, method, operation in operations:
+        label = f"{method.upper()} {path}"
+        assert operation.get("summary"), f"{label} has no summary"
+        codes = set(operation["responses"])
+        errors = {code for code in codes if code.startswith(("4", "5"))}
+        assert errors, f"{label} documents no error responses"
+        success = sorted(code for code in codes if code.startswith("2"))
+        assert success, f"{label} documents no success response"
+        if path.startswith("/api/v1/files/"):
+            continue  # binary download
+        if success[0] not in {"202", "204"}:
+            content = operation["responses"][success[0]].get("content", {})
+            assert content.get("application/json", {}).get("schema"), f"{label} has no response schema"

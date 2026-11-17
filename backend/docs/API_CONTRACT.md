@@ -1,7 +1,7 @@
 # UniFix API Contract (for the frontend)
 
 Audience: Victor (frontend). You should not need to read backend code to integrate.
-Status: **Revision 3 (2026-11-17).** §1–§6 are **implemented** (Issues #1, #2 and #4). Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
+Status: **Revision 3 (2026-11-17).** §1–§7 are **implemented** (Batch 1: Issues #1, #2, #4, #3). §8 onward is Batch 2 and remains the planned contract. Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
 
 Revision 3 changes:
 
@@ -385,6 +385,26 @@ AllowedAction = "FUND"|"CANCEL"|"START"|"SUBMIT_COMPLETION"|"APPROVE_RELEASE"|"R
 - `total_minor` is computed by the server (`labour_minor + materials_minor`). Do not send it.
 - **Quotes are never edited.** A new `POST /quotes` creates a new version and supersedes the old one. An accepted quote and its agreement are immutable.
 - Render booking buttons from `allowed_actions`.
+
+Implementation notes (Issue #3):
+
+- **Accepting a quote.** `POST /quotes/{id}/accept` takes an optional body `{service_address}`. It defaults to the request's `location_text`. The professional sees `booking.address` only from `FUNDED` onwards.
+- **Idempotency.** Accept honours `Idempotency-Key`: a replay returns the original `201` with `Idempotent-Replayed: true`; the same key with a different body returns `409 IDEMPOTENCY_KEY_REUSED`.
+- **Quote fields.**
+  - `QuoteOut` adds `valid_until` (default 7 days, at most 30) and `expired`. Accepting an expired quote returns `409 QUOTE_EXPIRED`.
+  - Sending a quote requires a **verified email** (`403 EMAIL_NOT_VERIFIED`).
+  - A new quote supersedes your pending one (`SUPERSEDED`). There is at most one pending quote per conversation.
+- **One active booking per conversation.** Quotes and acceptances are refused with `409 ACTIVE_BOOKING_EXISTS` while one exists.
+- **Competing quotes on a request.** Accepting one quote on a service request rejects the other pending quotes on that request and marks the request `BOOKED`.
+- **Payment window.** `BookingOut` adds `payment_due_by` (created + 7 days), `cancellation_reason` and `service_request_id`. An unpaid booking past `payment_due_by` becomes `CANCELLED`, with a `SYSTEM` timeline entry.
+- **Cancellation.** Cancelling before payment returns a request-linked booking's request to `OPEN`.
+- **Allowed actions in Batch 1:** `CANCEL` (both parties, while `PENDING_PAYMENT`) and `START` (professional, once `FUNDED`). `FUND` and the other money actions appear in Batch 2. Batch 1 has no route that sets a booking to `FUNDED` or any later money state.
+- **Request privacy.**
+  - `GET /service-requests/{id}` and the feed never include `location_text`, coordinates or customer contact details for professionals.
+  - The owner's view (`ServiceRequestOwnerOut`) adds `location_text`, `latitude`, `longitude`, `target_professional_id` and `conversation_ids`.
+  - Request photos (`REQUEST_MEDIA`) are visible to the owner, admins and eligible or responding professionals only.
+- **Feed rules.** Open, unexpired (14-day) requests in your categories (a parent category includes its sub-categories). A campus-bound request needs a campus you serve. A targeted request is shown only to its target.
+- **Cancellation requests** (`/bookings/{id}/cancellation-requests`) are Batch 2 (Issue 6), because they only apply after funding.
 
 ## 8. Wallets — Issue 5
 

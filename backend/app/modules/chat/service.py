@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import math
 import uuid
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,7 +54,32 @@ from app.modules.uploads import repository as uploads_repository
 from app.modules.uploads import service as uploads
 from app.modules.uploads.models import FilePurpose
 from app.modules.users import repository as users_repository
-from app.modules.users.models import Role, User
+from app.modules.users.models import Role
+
+# Later workflows (quotes, bookings) attach data to conversations through these hooks, which
+# app.api.v1 registers explicitly. Chat never imports those modules (keeps the graph acyclic).
+BookingLookup = Callable[[AsyncSession, Sequence[uuid.UUID]], Awaitable[dict[uuid.UUID, uuid.UUID]]]
+QuotesLookup = Callable[[AsyncSession, uuid.UUID], Awaitable[list[dict[str, Any]]]]
+_hooks: dict[str, Any] = {}
+
+
+def register_booking_lookup(lookup: BookingLookup) -> None:
+    _hooks["bookings"] = lookup
+
+
+def register_quotes_lookup(lookup: QuotesLookup) -> None:
+    _hooks["quotes"] = lookup
+
+
+async def _active_bookings(session: AsyncSession, ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, uuid.UUID]:
+    lookup: BookingLookup | None = _hooks.get("bookings")
+    return await lookup(session, ids) if lookup else {}
+
+
+async def _quotes(session: AsyncSession, conversation_id: uuid.UUID) -> list[dict[str, Any]]:
+    lookup: QuotesLookup | None = _hooks.get("quotes")
+    return await lookup(session, conversation_id) if lookup else []
+
 
 TICKET_TTL = timedelta(seconds=30)
 PREVIEW_LENGTH = 140
@@ -74,6 +100,13 @@ async def require_member(
     return conversation, member
 
 
+async def lock_conversation(session: AsyncSession, conversation_id: uuid.UUID) -> Conversation:
+    conversation = await repository.get_conversation(session, conversation_id, for_update=True)
+    if conversation is None:
+        raise NotFound("Conversation not found.")
+    return conversation
+
+
 async def is_member(session: AsyncSession, conversation_id: uuid.UUID, user_id: uuid.UUID) -> bool:
     return await repository.get_member(session, conversation_id, user_id) is not None
 
@@ -87,16 +120,27 @@ async def can_read_attachment(session: AsyncSession, caller: AuthContext, file: 
 # ---------------------------------------------------------------- conversations
 
 
-async def _create_direct(
-    session: AsyncSession, customer: User, professional_id: uuid.UUID, professional_user_id: uuid.UUID
+async def create_conversation(
+    session: AsyncSession,
+    *,
+    customer_id: uuid.UUID,
+    professional_id: uuid.UUID,
+    professional_user_id: uuid.UUID,
+    service_request_id: uuid.UUID | None = None,
 ) -> Conversation:
-    conversation = Conversation(id=uuid.uuid4(), customer_id=customer.id, professional_id=professional_id)
+    """Insert a conversation and its two members (no commit)."""
+    conversation = Conversation(
+        id=uuid.uuid4(),
+        customer_id=customer_id,
+        professional_id=professional_id,
+        service_request_id=service_request_id,
+    )
     repository.add(session, conversation)
     await session.flush()
     repository.add(
         session,
         ConversationMember(
-            conversation_id=conversation.id, user_id=customer.id, role=MemberRole.CUSTOMER.value
+            conversation_id=conversation.id, user_id=customer_id, role=MemberRole.CUSTOMER.value
         ),
         ConversationMember(
             conversation_id=conversation.id, user_id=professional_user_id, role=MemberRole.PROFESSIONAL.value
@@ -122,7 +166,12 @@ async def open_conversation(
     if existing is not None:
         return existing, False
     try:
-        conversation = await _create_direct(session, caller.user, profile.id, professional_user.id)
+        conversation = await create_conversation(
+            session,
+            customer_id=caller.user_id,
+            professional_id=profile.id,
+            professional_user_id=professional_user.id,
+        )
         await audit.record(
             session,
             action="chat.conversation_opened",
@@ -166,11 +215,15 @@ async def unread_for(session: AsyncSession, conversation_id: uuid.UUID) -> list[
     return await repository.unread_user_ids(session, conversation_id)
 
 
-def conversation_out(conversation: Conversation, unread_for: list[uuid.UUID]) -> ConversationOut:
+def conversation_out(
+    conversation: Conversation, unread_for: list[uuid.UUID], booking_id: uuid.UUID | None = None
+) -> ConversationOut:
     return ConversationOut(
         id=conversation.id,
         customer_id=conversation.customer_id,
         professional_id=conversation.professional_id,
+        service_request_id=conversation.service_request_id,
+        booking_id=booking_id,
         last_message_at=conversation.last_message_at,
         last_message_preview=conversation.last_message_preview,
         unread_for=unread_for,
@@ -205,6 +258,7 @@ async def messages_out(
                 sender_id=message.sender_id,
                 kind=MessageKind(message.kind),
                 body=message.body,
+                quote_id=message.quote_id,
                 attachment=uploads.file_ref(services, attachment) if attachment else None,
                 created_at=message.created_at,
                 read_at=read_at,
@@ -218,6 +272,7 @@ async def summaries(
 ) -> list[ConversationSummary]:
     ids = [c.id for c in conversations]
     unread = await repository.unread_for_many(session, ids)
+    bookings = await _active_bookings(session, ids)
     rows: list[SearchRow] = []
     for conversation in conversations:
         found = await professionals_repository.get_with_user(session, conversation.professional_id)
@@ -227,7 +282,9 @@ async def summaries(
     customers = await public_users(session, [c.customer_id for c in conversations])
     return [
         ConversationSummary(
-            conversation=conversation_out(conversation, unread[conversation.id]),
+            conversation=conversation_out(
+                conversation, unread[conversation.id], bookings.get(conversation.id)
+            ),
             professional=profiles[conversation.professional_id],
             customer=customers[conversation.customer_id],
             unread=caller.user_id in unread[conversation.id],
@@ -258,7 +315,9 @@ async def detail(
         session, conversation_id, before_seq=None, after_seq=None, limit=messages_limit
     )
     return ConversationDetail(
-        **summary.model_dump(), messages=await messages_out(session, services, history, members)
+        **summary.model_dump(),
+        messages=await messages_out(session, services, history, members),
+        quotes=await _quotes(session, conversation_id),
     )
 
 
@@ -390,30 +449,59 @@ async def send_message(
     return out, True
 
 
-async def add_system_message(
+async def insert_message(
     session: AsyncSession,
     conversation_id: uuid.UUID,
-    body: str,
     *,
+    sender: AuthContext | None,
+    body: str,
+    kind: MessageKind,
     now: datetime,
-    kind: MessageKind = MessageKind.SYSTEM,
+    quote_id: uuid.UUID | None = None,
 ) -> Message:
-    """Append a system message inside the caller's transaction. The caller commits, then publishes."""
+    """Append a message inside the caller's transaction (no commit). The caller publishes after commit."""
     conversation = await repository.get_conversation(session, conversation_id, for_update=True)
     if conversation is None:
         raise NotFound("Conversation not found.")
     message = Message(
         id=uuid.uuid4(),
         conversation_id=conversation_id,
-        sender_id=None,
+        sender_id=sender.user_id if sender else None,
         kind=kind.value,
         body=body,
+        quote_id=quote_id,
         created_at=now,
     )
     repository.add(session, message)
     await session.flush()
     _touch(conversation, message)
+    if sender is not None:
+        member = await repository.get_member(session, conversation_id, sender.user_id, for_update=True)
+        if member is not None:
+            member.last_read_seq, member.last_read_message_id, member.last_read_at = (
+                message.seq,
+                message.id,
+                now,
+            )
+        await _record_response_time(session, conversation, sender, message)
     return message
+
+
+async def publish_event(
+    hub: ConversationHub, conversation_id: uuid.UUID, event_type: str, data: dict[str, Any]
+) -> None:
+    await hub.publish(
+        conversation_id, {"type": event_type, "conversation_id": str(conversation_id), "data": data}
+    )
+
+
+async def add_system_message(
+    session: AsyncSession, conversation_id: uuid.UUID, body: str, *, now: datetime
+) -> Message:
+    """Append a system message (no sender) inside the caller's transaction."""
+    return await insert_message(
+        session, conversation_id, sender=None, body=body, kind=MessageKind.SYSTEM, now=now
+    )
 
 
 async def publish_message(
