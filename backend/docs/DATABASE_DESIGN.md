@@ -346,6 +346,8 @@ The cursor is updated in the same transaction as the events it covers.
 
 ### Issue 7 — Disputes and reviews
 
+*Implemented in migration `0007`.* Additions: `disputes.locked_at`; `evidence_closes_at` and `decision_due_at` are nullable until the lock confirms; `escalation_level` is 0–2. `dispute_evidence` is append-only (trigger) and `reviews` cannot be deleted (trigger). A `RESOLVED` booking stamps `completed_at`, which starts the 30-day review window.
+
 **disputes**
 `id, booking_id FK, escrow_id FK, opened_by FK, reason (INCOMPLETE|DAMAGED|NO_SHOW|PRICE_CHANGED|QUALITY|OTHER), details, status (OPEN|UNDER_REVIEW|AWAITING_SETTLEMENT|RESOLVED|CLOSED), outcome NULL (RELEASE|REFUND|SPLIT|CONCEDED_RELEASE|CONCEDED_REFUND), split_bps_to_professional int NULL CHECK 0–10000, resolution_note, resolved_by NULL, resolved_at, evidence_closes_at, decision_due_at, escalation_level smallint default 0, escalated_at NULL, created_at, updated_at`.
 The outcome is set by the reconciler from the confirmed event, never from the admin's request alone.

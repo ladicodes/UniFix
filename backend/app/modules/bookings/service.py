@@ -57,6 +57,18 @@ _funding_in_flight: FundingGuard | None = None
 _terms_lookup: TermsLookup | None = None
 
 
+BundleAddon = Callable[
+    [AsyncSession, Booking, TimelineActor | None, datetime], Awaitable[tuple[dict[str, Any], list[str]]]
+]
+_addons: list[BundleAddon] = []
+
+
+def register_bundle_addon(addon: BundleAddon) -> None:
+    """Disputes and reviews add their part of the booking bundle (fields + allowed actions)."""
+    _addons[:] = [a for a in _addons if getattr(a, "__name__", None) != getattr(addon, "__name__", None)]
+    _addons.append(addon)
+
+
 def register_payment_hooks(
     *, extension: PaymentExtension, funding_guard: FundingGuard, terms: TermsLookup
 ) -> None:
@@ -94,6 +106,7 @@ async def transition(
         BookingStatus.IN_PROGRESS: "started_at",
         BookingStatus.COMPLETION_SUBMITTED: "completion_submitted_at",
         BookingStatus.COMPLETED: "completed_at",
+        BookingStatus.RESOLVED: "completed_at",
         BookingStatus.CANCELLED: "cancelled_at",
     }
     if to in stamps:
@@ -395,6 +408,11 @@ async def bundles(
             if "CANCEL" in actions and await _funding_pending(session, booking.id):
                 actions.remove("CANCEL")
             actions = sorted({*actions, *extra})
+        fields: dict[str, Any] = {}
+        for addon in _addons:
+            extra_fields, extra_actions = await addon(session, booking, actor, services.clock.now())
+            fields.update(extra_fields)
+            actions = sorted({*actions, *extra_actions})
         result.append(
             BookingBundle(
                 booking=_booking_out(booking, agreement, events[booking.id], show_address=show_address),
@@ -403,6 +421,7 @@ async def bundles(
                 customer=customers[booking.customer_id],
                 escrow=escrow,
                 allowed_actions=actions,
+                **fields,
             )
         )
     return result
@@ -599,3 +618,9 @@ async def is_party(session: AsyncSession, caller: AuthContext, booking_id: uuid.
     return caller.user_id == booking.customer_id or caller.user_id == await professional_user_id(
         session, booking
     )
+
+
+async def booking_row(session: AsyncSession, booking_id: uuid.UUID) -> Booking:
+    booking = await repository.get(session, booking_id)
+    assert booking is not None
+    return booking

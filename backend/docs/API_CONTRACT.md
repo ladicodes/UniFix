@@ -492,6 +492,15 @@ Receipt = { id; number; kind: "FUNDING"|"RELEASE"|"REFUND"|"RESOLUTION"; booking
 
 ## 10. Completion, disputes, reviews — Issues 6 and 7
 
+**Issue 7 implemented.** Notes:
+
+- `POST /escrows/{id}/disputes` returns `201 {dispute, escrow, unsigned_xdr, tx_hash, valid_until}`; `POST /disputes/{id}/lock` with `{signed_xdr}` submits the lock, or with `{}` prepares it again. `POST /disputes/{id}/resolve` prepares with `{outcome, split_bps_to_professional?, note}` (outcome `RELEASE`, `REFUND` or `SPLIT`; `split_bps_to_professional` 1–9999, `SPLIT` only) and submits with `{signed_xdr}`.
+- Concessions use the Issue 6 routes while the escrow is `DISPUTED`: the customer's `POST /escrows/{id}/release`, the professional's `POST /escrows/{id}/refund`.
+- `DisputeBundle` = `{dispute, escrow, booking_title, customer_id, professional_id}`. `Dispute.locked_at` is added; `sla` dates are `null` until the lock confirms. `Dispute.status` `CLOSED` means the lock never landed and the escrow settled another way.
+- `BookingBundle.dispute` and `BookingBundle.review` are populated. New `allowed_actions`: `OPEN_DISPUTE`, `LOCK_DISPUTE`, `CONCEDE_RELEASE` (customer), `CONCEDE_REFUND` (professional), `REVIEW` (customer, when eligible).
+- Errors: `409 DISPUTE_OPEN`, `409 DISPUTE_EXISTS`, `409 DISPUTE_NOT_ALLOWED`, `409 DEADLINE_PASSED`, `409 DISPUTE_ALREADY_LOCKED`, `409 DISPUTE_NOT_LOCKED`, `409 DISPUTE_CLOSED`, `403 ARBITER_WALLET_REQUIRED`, `400 INVALID_SPLIT`, `400 INVALID_OUTCOME`, `409 REVIEW_NOT_ELIGIBLE`, `409 REVIEW_WINDOW_CLOSED`, `409 REVIEW_EXISTS`, `409 RESPONSE_EXISTS`, `409 REVIEW_NOT_PUBLISHED`, `409 REVIEW_REMOVED`, `409 ALREADY_REPORTED`.
+- `GET /professionals/{id}/reviews` is paginated (`X-Total-Count`). `ProfessionalOut.rating`, `review_count` and `rating_breakdown` are now live, recomputed from published reviews in the same transaction as each create, hide, restore and remove; the `BEST` sort uses them. `REMOVE` is final.
+
 | Method | Path | Who | Body → Response |
 |---|---|---|---|
 | POST | `/disputes/{id}/evidence` | party / admin | `{note, file_id?}` |

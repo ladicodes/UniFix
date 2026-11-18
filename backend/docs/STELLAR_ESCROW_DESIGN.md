@@ -499,3 +499,31 @@ For each run the tests also check that the on-chain `terms_hash` equals the `ter
 - D16b implemented: the keeper finalises undisputed deadlines `KEEPER_DELAY_SECONDS` (default 15 min) after maturity, with the operator account as source; the in-flight unique index makes a second keeper's attempt a no-op. D21 implemented: a professional may refund at any time before settlement.
 - `ESCROW_DEADLINE_UNIT_SECONDS` must match the contract build (86400; 60 only for the short-windows test build, refused in production). With 60, `refund_after` is one hour after preparation.
 - Funding a booking whose payment window has expired is prevented while a funding transaction is in flight (the booking can neither be cancelled nor expire). If funds still arrive for a cancelled booking (for example funded from another tool), the event is marked `CONFLICT` and audited; the customer's money stays protected by the on-chain deadline refund.
+
+## 15. Issue 7: disputes on testnet through the API (2026-11-18)
+
+`UNIFIX_TESTNET=1 uv run pytest -m testnet tests/testnet/test_testnet_disputes.py` (6 passed). Each run funds an escrow through the API first; the arbiter is an admin account whose verified wallet is the deployment's arbiter key.
+
+| Step | Transaction |
+|---|---|
+| Arbiter RELEASE: open_dispute (customer) | [`67e077e6d6c8…`](https://stellar.expert/explorer/testnet/tx/67e077e6d6c865ab57c381e8884a40ca78d87ab124b9496104fa3ad5e81f7c82) |
+| Arbiter RELEASE: resolve → `COMPLETED`, outcome `RELEASE` | [`d3ff441aad8a…`](https://stellar.expert/explorer/testnet/tx/d3ff441aad8ac4d3ffbd3277ab8b503ced61d9051b8e53257154b5d497b925f0) |
+| Arbiter REFUND: open_dispute | [`841df2954ba5…`](https://stellar.expert/explorer/testnet/tx/841df2954ba5c83787008fe6523b12eb3a0921fe005a2fbcf1ba3846b983f506) |
+| Arbiter REFUND: resolve → `REFUNDED`, outcome `REFUND` | [`d74b685a18b7…`](https://stellar.expert/explorer/testnet/tx/d74b685a18b7ce4622d0617927880db90a37d11217191ca8c95cfa2ce778aa1e) |
+| Arbiter SPLIT (40 %): open_dispute | [`6386951a9082…`](https://stellar.expert/explorer/testnet/tx/6386951a90820cb4abd28b0e8b1c06dfead5a8cf082094b0669c84258596e582) |
+| Arbiter SPLIT: resolve → `RESOLVED`, outcome `SPLIT` | [`bb3a63fe43eb…`](https://stellar.expert/explorer/testnet/tx/bb3a63fe43eb756715550e649e15c4257d7472644b8dd8148ec6edfa2850846e) |
+| Customer concession: open_dispute (professional) | [`1c3bf3639a6f…`](https://stellar.expert/explorer/testnet/tx/1c3bf3639a6f054480c40890de7cf83dc5c158f490a01984b3cf457b9a4b59dc) |
+| Customer tries to refund themselves → **failed on-chain** | [`958fa6cf7989…`](https://stellar.expert/explorer/testnet/tx/958fa6cf7989711830d8d39d4be129e85f13891457398da5559e01422f37fded) |
+| Professional tries to release to themselves → **failed on-chain** | [`080dfe7ae241…`](https://stellar.expert/explorer/testnet/tx/080dfe7ae241ab7130cf912b17ec508cfea1770009568b208625c54d4e8be79c) |
+| Customer concedes (release) → `COMPLETED`, outcome `CONCEDED_RELEASE` | [`8b364b8e16ef…`](https://stellar.expert/explorer/testnet/tx/8b364b8e16ef128d0d9b802e4a079c019905588d86597ed8f2ee7a81d48d4b52) |
+| Professional concession: open_dispute (customer) | [`73664e602855…`](https://stellar.expert/explorer/testnet/tx/73664e60285575b4fe3b8b4278e82dfacdd0e74593f2567c3c96846e0ef5a586) |
+| Professional concedes (refund) → `REFUNDED`, outcome `CONCEDED_REFUND` | [`5a97f3716b2b…`](https://stellar.expert/explorer/testnet/tx/5a97f3716b2b19a28dcc4f57d2b3833b859a1cc9e1ca9347d03817cabb504bda) |
+
+Also refused on-chain in the same runs: `finalize_expired` on a disputed escrow (`InvalidState` in simulation, twice) and `resolve` on an undisputed escrow (`InvalidState`).
+
+**Implementation notes (Issue 7):**
+
+- The dispute record (`OPEN`) is created before the on-chain lock and immediately blocks ordinary release and refund preparation (`409 DISPUTE_OPEN`). Once the lock confirms, the record becomes `UNDER_REVIEW` and the SLA clock starts from the lock: evidence closes at +72 h, a decision is due at +7 days.
+- A dispute opened outside the app (another wallet tool) is recorded by the reconciler with reason `OTHER`. A record whose lock never landed is `CLOSED` when the escrow settles another way (for example the deadline refund).
+- Escalation runs on every reconciler tick: level 1 at day 7, level 2 at day 14, audited. **No disputed funds are ever settled automatically** (P1/F-A); the keeper never selects a disputed escrow.
+- `POST /disputes/{id}/resolve` checks that the admin's verified wallet equals the contract's on-chain arbiter (`get_config`). The dispute's `outcome` is set only by the reconciler from the confirmed event: `RELEASE`/`REFUND`/`SPLIT` for the arbiter, `CONCEDED_RELEASE`/`CONCEDED_REFUND` for a party's concession. Splits use `floor(asset_units × bps / 10000)`; the remainder goes to the customer.

@@ -448,6 +448,7 @@ async def test_no_route_can_set_a_booking_status(client: httpx.AsyncClient, seed
         ("GET", f"{API}/bookings/{{booking_id}}/completion"),
         ("POST", f"{API}/bookings/{{booking_id}}/cancellation-requests"),
         ("GET", f"{API}/bookings/{{booking_id}}/receipts"),
+        ("POST", f"{API}/bookings/{{booking_id}}/reviews"),
     }
     assert (
         await client.patch(f"{API}/bookings/{uuid.uuid4()}", json={"status": "FUNDED"})

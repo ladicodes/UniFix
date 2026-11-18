@@ -19,9 +19,11 @@ from app.core.middleware import RequestContextMiddleware
 from app.modules.bookings import service as bookings_service
 from app.modules.chat import service as chat_service
 from app.modules.chat.hub import ConversationHub
+from app.modules.disputes import service as disputes_service
 from app.modules.payments import service as payments_service
 from app.modules.payments.reconciler import Reconciler, ReconcilerLoop
 from app.modules.quotes import service as quotes_service
+from app.modules.reviews import service as reviews_service
 from app.modules.stellar.context import StellarContext, build_stellar, startup_check
 
 CORS_ALLOWED_HEADERS = [
@@ -76,6 +78,16 @@ def create_app(
     async def payment_extension(session: Any, booking: Any, actor: Any, now: Any) -> Any:
         return await payments_service.bundle_extension(session, stellar, booking, actor, now)
 
+    async def dispute_addon(session: Any, booking: Any, actor: Any, now: Any) -> Any:
+        dispute, actions = await disputes_service.bundle_extension(session, services, booking.id, actor)
+        return {"dispute": dispute}, actions
+
+    async def review_addon(session: Any, booking: Any, actor: Any, now: Any) -> Any:
+        review, actions = await reviews_service.bundle_extension(session, booking, actor, now)
+        return {"review": review}, actions
+
+    bookings_service.register_bundle_addon(dispute_addon)
+    bookings_service.register_bundle_addon(review_addon)
     bookings_service.register_payment_hooks(
         extension=payment_extension,
         funding_guard=payments_service.funding_in_flight,

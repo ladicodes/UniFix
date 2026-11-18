@@ -14,6 +14,8 @@ from app.modules.chat import service as chat_service
 from app.modules.chat.router import router as chat_router
 from app.modules.completion import service as completion_service
 from app.modules.completion.router import router as completion_router
+from app.modules.disputes import service as disputes_service
+from app.modules.disputes.router import router as disputes_router
 from app.modules.payments import reconciler
 from app.modules.payments import service as payments_service
 from app.modules.payments.router import router as payments_router
@@ -21,6 +23,7 @@ from app.modules.professionals.router import router as professionals_router
 from app.modules.quotes.router import router as quotes_router
 from app.modules.requests import service as requests_service
 from app.modules.requests.router import router as requests_router
+from app.modules.reviews.router import router as reviews_router
 from app.modules.uploads import policy as upload_policy
 from app.modules.uploads.models import FilePurpose
 from app.modules.uploads.router import router as uploads_router
@@ -44,6 +47,8 @@ for module_router in (
     wallets_router,
     payments_router,
     completion_router,
+    disputes_router,
+    reviews_router,
 ):
     router.include_router(module_router)
 
@@ -61,3 +66,10 @@ wallets_service.register_active_escrow_check(payments_service.wallet_in_active_e
 reconciler.register_completion_hooks(
     submitted=completion_service.on_submitted, released=completion_service.on_released
 )
+# Disputes (Issue 7): an active record blocks ordinary settlement and enables concessions; the
+# reconciler confirms locks and settlements; overdue disputes escalate (never auto-settle).
+payments_service.register_dispute_guard(disputes_service.has_active_dispute)
+reconciler.register_dispute_hook("disputed", disputes_service.on_locked)
+reconciler.register_dispute_hook("settled", disputes_service.on_settled)
+reconciler.register_periodic(disputes_service.escalate_overdue)
+upload_policy.register_read_rule(FilePurpose.DISPUTE_EVIDENCE, disputes_service.can_read_evidence)

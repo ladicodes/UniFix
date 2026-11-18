@@ -102,6 +102,16 @@ def register_completion_hooks(*, submitted: CompletionHook, released: Completion
     _completion_submitted, _completion_released = submitted, released
 
 
+PeriodicJob = Callable[[Services], Awaitable[int]]
+_periodic: list[PeriodicJob] = []
+
+
+def register_periodic(job: PeriodicJob) -> None:
+    """Idempotent jobs run once per leader tick (e.g. dispute escalation, deadline notifications)."""
+    if job not in _periodic:
+        _periodic.append(job)
+
+
 def register_dispute_hook(event: str, hook: DisputeHook) -> None:
     """Issue 7: ``disputed`` (lock confirmed) and ``settled`` (a disputed escrow settled)."""
     _dispute_hooks[event] = hook
@@ -142,6 +152,8 @@ class Reconciler:
         await self.scan_events()
         await self.apply_pending()
         await self.run_keeper()
+        for job in list(_periodic):
+            await job(self.services)
 
     # ---- 1. our own transactions
 
@@ -404,6 +416,9 @@ class Reconciler:
                 return
             if await repository.in_flight(session, escrow.id, TxKind.FINALIZE) is not None:
                 return
+            lock = await repository.in_flight(session, escrow.id, TxKind.DISPUTE)
+            if lock is not None and lock.status != TxStatus.PREPARED.value:
+                return  # a signed dispute lock is landing; let the chain decide which comes first
             now = self.services.clock.now()
             try:
                 prepared = await self.stellar.require().prepare_call(
@@ -744,7 +759,6 @@ async def _on_settled(session: AsyncSession, c: ApplyContext) -> None:
         raise Conflicting(f"'{c.event.event_type}' but the escrow is {c.chain.status.value} on-chain")
     if not _advance(c, target):
         return
-    was_disputed = c.escrow.state == EscrowState.DISPUTED.value
     payout, refund = int(c.chain.professional_payout), int(c.chain.customer_refund)
     c.escrow.state = target.value
     c.escrow.settled_by = c.chain.settled_by
@@ -809,7 +823,7 @@ async def _on_settled(session: AsyncSession, c: ApplyContext) -> None:
     else:
         await _receipt(session, c, ReceiptKind.RESOLUTION, payout + refund, split)
         await _booking_to(session, c, BookingStatus.RESOLVED, "Dispute resolved by the arbiter")
-    if was_disputed and "settled" in _dispute_hooks:
+    if "settled" in _dispute_hooks:  # resolves a locked dispute, or closes a never-locked record
         await _dispute_hooks["settled"](session, c)
 
 

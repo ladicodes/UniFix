@@ -426,14 +426,12 @@
           "dispute": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/DisputeOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Dispute"
+            ]
           },
           "escrow": {
             "anyOf": [
@@ -454,14 +452,12 @@
           "review": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/ReviewOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Review"
+            ]
           }
         },
         "required": [
@@ -1642,6 +1638,229 @@
         "title": "DeclineCancellationIn",
         "type": "object"
       },
+      "DisputeBundle": {
+        "properties": {
+          "booking_title": {
+            "title": "Booking Title",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "dispute": {
+            "$ref": "#/components/schemas/DisputeOut"
+          },
+          "escrow": {
+            "$ref": "#/components/schemas/EscrowOut"
+          },
+          "professional_id": {
+            "format": "uuid",
+            "title": "Professional Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dispute",
+          "escrow",
+          "booking_title",
+          "customer_id",
+          "professional_id"
+        ],
+        "title": "DisputeBundle",
+        "type": "object"
+      },
+      "DisputeOut": {
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "details": {
+            "title": "Details",
+            "type": "string"
+          },
+          "escrow_id": {
+            "format": "uuid",
+            "title": "Escrow Id",
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceOut"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "locked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked At"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "opened_by": {
+            "format": "uuid",
+            "title": "Opened By",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DisputeOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DisputeReason"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "sla": {
+            "$ref": "#/components/schemas/SlaOut"
+          },
+          "split_bps_to_professional": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Split Bps To Professional"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DisputeStatus"
+          }
+        },
+        "required": [
+          "id",
+          "booking_id",
+          "escrow_id",
+          "opened_by",
+          "reason",
+          "details",
+          "status",
+          "opened_at",
+          "locked_at",
+          "outcome",
+          "sla",
+          "split_bps_to_professional",
+          "resolution_note",
+          "resolved_at",
+          "evidence"
+        ],
+        "title": "DisputeOut",
+        "type": "object"
+      },
+      "DisputeOutcome": {
+        "enum": [
+          "RELEASE",
+          "REFUND",
+          "SPLIT",
+          "CONCEDED_RELEASE",
+          "CONCEDED_REFUND"
+        ],
+        "title": "DisputeOutcome",
+        "type": "string"
+      },
+      "DisputePreparedOut": {
+        "properties": {
+          "dispute": {
+            "$ref": "#/components/schemas/DisputeOut"
+          },
+          "escrow": {
+            "$ref": "#/components/schemas/EscrowOut"
+          },
+          "tx_hash": {
+            "title": "Tx Hash",
+            "type": "string"
+          },
+          "unsigned_xdr": {
+            "title": "Unsigned Xdr",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dispute",
+          "escrow",
+          "unsigned_xdr",
+          "tx_hash",
+          "valid_until"
+        ],
+        "title": "DisputePreparedOut",
+        "type": "object"
+      },
+      "DisputeReason": {
+        "enum": [
+          "INCOMPLETE",
+          "DAMAGED",
+          "NO_SHOW",
+          "PRICE_CHANGED",
+          "QUALITY",
+          "OTHER"
+        ],
+        "title": "DisputeReason",
+        "type": "string"
+      },
+      "DisputeStatus": {
+        "enum": [
+          "OPEN",
+          "UNDER_REVIEW",
+          "AWAITING_SETTLEMENT",
+          "RESOLVED",
+          "CLOSED"
+        ],
+        "title": "DisputeStatus",
+        "type": "string"
+      },
       "EndCallIn": {
         "additionalProperties": false,
         "properties": {
@@ -1937,6 +2156,76 @@
         "title": "EscrowTransactionOut",
         "type": "object"
       },
+      "EvidenceIn": {
+        "additionalProperties": false,
+        "properties": {
+          "file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id"
+          },
+          "note": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "EvidenceIn",
+        "type": "object"
+      },
+      "EvidenceOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "submitted_by": {
+            "format": "uuid",
+            "title": "Submitted By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "submitted_by",
+          "note",
+          "file",
+          "created_at"
+        ],
+        "title": "EvidenceOut",
+        "type": "object"
+      },
       "ExtendIn": {
         "additionalProperties": false,
         "properties": {
@@ -2175,6 +2464,27 @@
         "title": "IceServer",
         "type": "object"
       },
+      "LockIn": {
+        "additionalProperties": false,
+        "description": "Empty body re-prepares the on-chain lock; ``{signed_xdr}`` submits it.",
+        "properties": {
+          "signed_xdr": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Xdr"
+          }
+        },
+        "title": "LockIn",
+        "type": "object"
+      },
       "LoginIn": {
         "additionalProperties": false,
         "properties": {
@@ -2331,6 +2641,35 @@
         "title": "Milestone",
         "type": "object"
       },
+      "ModerateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/ModerationAction"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "reason"
+        ],
+        "title": "ModerateIn",
+        "type": "object"
+      },
+      "ModerationAction": {
+        "enum": [
+          "HIDE",
+          "RESTORE",
+          "REMOVE"
+        ],
+        "title": "ModerationAction",
+        "type": "string"
+      },
       "OpenConversationIn": {
         "additionalProperties": false,
         "properties": {
@@ -2344,6 +2683,26 @@
           "professional_id"
         ],
         "title": "OpenConversationIn",
+        "type": "object"
+      },
+      "OpenDisputeIn": {
+        "additionalProperties": false,
+        "properties": {
+          "details": {
+            "maxLength": 4000,
+            "minLength": 10,
+            "title": "Details",
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/DisputeReason"
+          }
+        },
+        "required": [
+          "reason",
+          "details"
+        ],
+        "title": "OpenDisputeIn",
         "type": "object"
       },
       "PasswordResetConfirmIn": {
@@ -3807,6 +4166,83 @@
         "title": "RatingBreakdown",
         "type": "object"
       },
+      "Ratings": {
+        "additionalProperties": false,
+        "properties": {
+          "communication": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Communication",
+            "type": "integer"
+          },
+          "professionalism": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Professionalism",
+            "type": "integer"
+          },
+          "punctuality": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Punctuality",
+            "type": "integer"
+          },
+          "quality": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Quality",
+            "type": "integer"
+          },
+          "value": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "quality",
+          "punctuality",
+          "communication",
+          "professionalism",
+          "value"
+        ],
+        "title": "Ratings",
+        "type": "object"
+      },
+      "RatingsOut": {
+        "properties": {
+          "communication": {
+            "title": "Communication",
+            "type": "integer"
+          },
+          "professionalism": {
+            "title": "Professionalism",
+            "type": "integer"
+          },
+          "punctuality": {
+            "title": "Punctuality",
+            "type": "integer"
+          },
+          "quality": {
+            "title": "Quality",
+            "type": "integer"
+          },
+          "value": {
+            "title": "Value",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "quality",
+          "punctuality",
+          "communication",
+          "professionalism",
+          "value"
+        ],
+        "title": "RatingsOut",
+        "type": "object"
+      },
       "ReadyOut": {
         "properties": {
           "database": {
@@ -4113,6 +4549,64 @@
         "title": "RequestStatus",
         "type": "string"
       },
+      "ResolveIn": {
+        "additionalProperties": false,
+        "description": "Prepare with ``{outcome, split_bps_to_professional?, note}``; submit with ``{signed_xdr}``.",
+        "properties": {
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DisputeOutcome"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "RELEASE | REFUND | SPLIT"
+          },
+          "signed_xdr": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Xdr"
+          },
+          "split_bps_to_professional": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Split Bps To Professional"
+          }
+        },
+        "title": "ResolveIn",
+        "type": "object"
+      },
       "RespondIn": {
         "additionalProperties": false,
         "properties": {
@@ -4128,6 +4622,176 @@
         ],
         "title": "RespondIn",
         "type": "object"
+      },
+      "ResponseIn": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "ResponseIn",
+        "type": "object"
+      },
+      "ReviewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Comment",
+            "type": "string"
+          },
+          "ratings": {
+            "$ref": "#/components/schemas/Ratings"
+          }
+        },
+        "required": [
+          "ratings",
+          "comment"
+        ],
+        "title": "ReviewIn",
+        "type": "object"
+      },
+      "ReviewOut": {
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "comment": {
+            "title": "Comment",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "customer_id": {
+            "format": "uuid",
+            "title": "Customer Id",
+            "type": "string"
+          },
+          "customer_name": {
+            "title": "Customer Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_title": {
+            "title": "Job Title",
+            "type": "string"
+          },
+          "overall": {
+            "description": "Mean of the five ratings, one decimal",
+            "title": "Overall",
+            "type": "number"
+          },
+          "professional_id": {
+            "format": "uuid",
+            "title": "Professional Id",
+            "type": "string"
+          },
+          "ratings": {
+            "$ref": "#/components/schemas/RatingsOut"
+          },
+          "response": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewResponseOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReviewStatus"
+          }
+        },
+        "required": [
+          "id",
+          "booking_id",
+          "professional_id",
+          "customer_id",
+          "customer_name",
+          "job_title",
+          "ratings",
+          "overall",
+          "comment",
+          "status",
+          "created_at",
+          "response"
+        ],
+        "title": "ReviewOut",
+        "type": "object"
+      },
+      "ReviewReportIn": {
+        "additionalProperties": false,
+        "properties": {
+          "details": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "reason": {
+            "maxLength": 64,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "ReviewReportIn",
+        "type": "object"
+      },
+      "ReviewResponseOut": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "created_at"
+        ],
+        "title": "ReviewResponseOut",
+        "type": "object"
+      },
+      "ReviewStatus": {
+        "enum": [
+          "PUBLISHED",
+          "HIDDEN",
+          "REMOVED"
+        ],
+        "title": "ReviewStatus",
+        "type": "string"
       },
       "Role": {
         "enum": [
@@ -4709,6 +5373,58 @@
           "current"
         ],
         "title": "SessionOut",
+        "type": "object"
+      },
+      "SlaOut": {
+        "properties": {
+          "decision_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Due At"
+          },
+          "escalated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalated At"
+          },
+          "escalation_level": {
+            "title": "Escalation Level",
+            "type": "integer"
+          },
+          "evidence_closes_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Closes At"
+          }
+        },
+        "required": [
+          "evidence_closes_at",
+          "decision_due_at",
+          "escalation_level",
+          "escalated_at"
+        ],
+        "title": "SlaOut",
         "type": "object"
       },
       "SortOrder": {
@@ -5776,6 +6492,184 @@
         "summary": "Update or disable a service category (admin)",
         "tags": [
           "categories",
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/disputes": {
+      "get": {
+        "operationId": "admin_disputes_api_v1_admin_disputes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DisputeStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DisputeBundle"
+                  },
+                  "title": "Response Admin Disputes Api V1 Admin Disputes Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Dispute queue ordered by decision deadline (admin)",
+        "tags": [
+          "disputes",
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/reviews/{review_id}/moderate": {
+      "post": {
+        "operationId": "moderate_review_api_v1_admin_reviews__review_id__moderate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModerateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Hide, restore or remove a review (admin; audited; ratings recomputed)",
+        "tags": [
+          "reviews",
           "admin"
         ]
       }
@@ -7990,6 +8884,104 @@
         ]
       }
     },
+    "/api/v1/bookings/{booking_id}/reviews": {
+      "post": {
+        "operationId": "create_review_api_v1_bookings__booking_id__reviews_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Review a completed or resolved booking (its customer, once, within 30 days)",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
     "/api/v1/bookings/{booking_id}/start": {
       "post": {
         "operationId": "start_booking_api_v1_bookings__booking_id__start_post",
@@ -9194,6 +10186,445 @@
         ]
       }
     },
+    "/api/v1/disputes/{dispute_id}": {
+      "get": {
+        "operationId": "get_dispute_api_v1_disputes__dispute_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dispute_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Dispute Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "A dispute (parties and admins)",
+        "tags": [
+          "disputes"
+        ]
+      }
+    },
+    "/api/v1/disputes/{dispute_id}/evidence": {
+      "post": {
+        "operationId": "add_evidence_api_v1_disputes__dispute_id__evidence_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dispute_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Dispute Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Add a note and optionally one DISPUTE_EVIDENCE file (parties and admins)",
+        "tags": [
+          "disputes"
+        ]
+      }
+    },
+    "/api/v1/disputes/{dispute_id}/lock": {
+      "post": {
+        "operationId": "lock_dispute_api_v1_disputes__dispute_id__lock_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dispute_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Dispute Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LockIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DisputePreparedOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EscrowOut"
+                    }
+                  ],
+                  "title": "Response Lock Dispute Api V1 Disputes  Dispute Id  Lock Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "{signed_xdr} submits the signed open_dispute; {} prepares it again \ud83d\udcb0",
+        "tags": [
+          "disputes"
+        ]
+      }
+    },
+    "/api/v1/disputes/{dispute_id}/resolve": {
+      "post": {
+        "operationId": "resolve_dispute_api_v1_disputes__dispute_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dispute_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Dispute Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/DisputePreparedOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/DisputeOut"
+                    }
+                  ],
+                  "title": "Response Resolve Dispute Api V1 Disputes  Dispute Id  Resolve Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Arbiter: {outcome, split_bps_to_professional?, note} prepares resolve; {signed_xdr} submits \ud83d\udcb0",
+        "tags": [
+          "disputes",
+          "admin"
+        ]
+      }
+    },
     "/api/v1/escrows/{escrow_id}": {
       "get": {
         "operationId": "get_escrow_api_v1_escrows__escrow_id__get",
@@ -9259,6 +10690,134 @@
         "summary": "An escrow and its transactions",
         "tags": [
           "escrow"
+        ]
+      }
+    },
+    "/api/v1/escrows/{escrow_id}/disputes": {
+      "post": {
+        "operationId": "open_dispute_api_v1_escrows__escrow_id__disputes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "escrow_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Escrow Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenDisputeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisputePreparedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Open a dispute (blocks release/refund at once) and prepare the on-chain lock to sign \ud83d\udcb0",
+        "tags": [
+          "disputes"
         ]
       }
     },
@@ -10779,6 +12338,81 @@
         ]
       }
     },
+    "/api/v1/professionals/{professional_id}/reviews": {
+      "get": {
+        "operationId": "list_reviews_api_v1_professionals__professional_id__reviews_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "professional_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Professional Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Page size",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items to skip",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "description": "Items to skip",
+              "maximum": 100000,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewOut"
+                  },
+                  "title": "Response List Reviews Api V1 Professionals  Professional Id  Reviews Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "summary": "Published reviews of a professional (newest first)",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
     "/api/v1/quotes": {
       "post": {
         "operationId": "create_quote_api_v1_quotes_post",
@@ -11167,6 +12801,192 @@
         "summary": "Withdraw your pending quote (professional)",
         "tags": [
           "quotes"
+        ]
+      }
+    },
+    "/api/v1/reviews/{review_id}/report": {
+      "post": {
+        "operationId": "report_review_api_v1_reviews__review_id__report_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewReportIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Report a review for moderation",
+        "tags": [
+          "reviews"
+        ]
+      }
+    },
+    "/api/v1/reviews/{review_id}/response": {
+      "post": {
+        "operationId": "respond_api_v1_reviews__review_id__response_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "review_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Review Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponseIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "The reviewed professional's single public response",
+        "tags": [
+          "reviews"
         ]
       }
     },

@@ -565,6 +565,28 @@ async def report(
         if message is None or message.conversation_id != conversation_id:
             raise BadRequest("Unknown message.", code="INVALID_MESSAGE")
         target_type, target_id = ReportTarget.MESSAGE, message.id
+    return await create_report(
+        session,
+        caller,
+        target_type=target_type,
+        target_id=target_id,
+        conversation_id=conversation_id,
+        reason=data.reason,
+        details=data.details,
+    )
+
+
+async def create_report(
+    session: AsyncSession,
+    caller: AuthContext,
+    *,
+    target_type: ReportTarget,
+    target_id: uuid.UUID,
+    conversation_id: uuid.UUID | None,
+    reason: str,
+    details: str | None,
+) -> Report:
+    """One report per (reporter, target); reused for reviews (Issue 7)."""
     if await repository.find_report(session, caller.user_id, target_type.value, target_id):
         raise Conflict("You have already reported this.", code="ALREADY_REPORTED")
     row = Report(
@@ -572,8 +594,8 @@ async def report(
         target_type=target_type.value,
         target_id=target_id,
         conversation_id=conversation_id,
-        reason=data.reason,
-        details=data.details,
+        reason=reason,
+        details=details,
     )
     repository.add(session, row)
     try:
@@ -585,11 +607,11 @@ async def report(
         raise
     await audit.record(
         session,
-        action="chat.reported",
+        action=f"{target_type.value.lower()}.reported",
         entity_type=target_type.value.lower(),
         entity_id=target_id,
         actor_user_id=caller.user_id,
-        data={"reason": data.reason},
+        data={"reason": reason},
     )
     await session.commit()
     await session.refresh(row)
