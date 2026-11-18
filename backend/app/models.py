@@ -8,6 +8,16 @@ from app.modules.calls.models import CallSession
 from app.modules.campuses.models import Campus
 from app.modules.catalog.models import ServiceCategory
 from app.modules.chat.models import Conversation, ConversationMember, Message, Report, WebSocketTicket
+from app.modules.completion.models import CompletionFile, CompletionSubmission
+from app.modules.payments.models import (
+    CancellationRequest,
+    ChainEvent,
+    ChainSyncState,
+    ChainTransaction,
+    Escrow,
+    LedgerEntry,
+    Receipt,
+)
 from app.modules.professionals.models import PortfolioItem, ProfessionalProfile, ProfessionalVerification
 from app.modules.quotes.models import Agreement, Quote
 from app.modules.requests.models import ServiceRequest
@@ -24,15 +34,24 @@ __all__ = [
     "BookingEvent",
     "CallSession",
     "Campus",
+    "CancellationRequest",
+    "ChainEvent",
+    "ChainSyncState",
+    "ChainTransaction",
+    "CompletionFile",
+    "CompletionSubmission",
     "Conversation",
     "ConversationMember",
+    "Escrow",
     "IdempotencyKey",
+    "LedgerEntry",
     "Message",
     "PortfolioItem",
     "ProfessionalProfile",
     "ProfessionalVerification",
     "Quote",
     "RateLimitEvent",
+    "Receipt",
     "Report",
     "ServiceCategory",
     "ServiceRequest",

@@ -125,8 +125,10 @@ class Settings(BaseSettings):
     escrow_id_secret: SecretStr | None = None
     stellar_operator_secret: SecretStr | None = None
     stellar_operator_address: str | None = None
-    escrow_review_window_seconds: int = Field(default=72 * 3600, ge=24 * 3600, le=14 * 24 * 3600)
+    escrow_review_window_seconds: int = Field(default=72 * 3600, ge=60, le=14 * 24 * 3600)
     escrow_service_grace_seconds: int = Field(default=3 * 24 * 3600, ge=0, le=30 * 24 * 3600)
+    # Must match the contract build: 86400 (production) or 60 (the test-only short-windows build).
+    escrow_deadline_unit_seconds: int = 86_400
     escrow_tx_valid_seconds: int = Field(default=300, ge=60, le=900)
     # D14: fixed demo rate (fiat major units per 1 whole token unit); refused off testnet.
     fx_demo_rate_ngn: str | None = None
@@ -134,6 +136,9 @@ class Settings(BaseSettings):
     # Reconciler and keeper (STELLAR_ESCROW_DESIGN §10, D16b).
     reconciler_enabled: bool = True
     reconciler_interval_seconds: float = Field(default=5.0, gt=0, le=300)
+    reconciler_start_ledger: int | None = Field(
+        default=None, ge=1, description="First scan; default oldest retained"
+    )
     keeper_delay_seconds: int = Field(default=15 * 60, ge=0, le=24 * 3600)
     wallet_challenge_ttl_seconds: int = Field(default=300, ge=60, le=900)
     wallet_challenge_rate_limit_per_hour: int = Field(default=20, ge=1)
@@ -210,12 +215,23 @@ class Settings(BaseSettings):
             self.fx_demo_rate_ngn or self.fx_demo_rate_ghs
         ):
             raise ValueError("A demo FX rate (FX_DEMO_RATE_*) is only allowed on TESTNET")
+        if self.escrow_deadline_unit_seconds not in {60, 86_400}:
+            raise ValueError(
+                "ESCROW_DEADLINE_UNIT_SECONDS must be 86400 (or 60 for the short-windows test build)"
+            )
+        if self.escrow_deadline_unit_seconds != 86_400 and self.env is Environment.PRODUCTION:
+            raise ValueError("The short-windows test contract build is not allowed in production")
         if self.escrow_contract_id is None:
             return
         if not StrKey.is_valid_contract(self.escrow_contract_id):
             raise ValueError("ESCROW_CONTRACT_ID is not a valid contract address")
         if self.escrow_id_secret is None or len(self.escrow_id_secret.get_secret_value().encode()) < 32:
             raise ValueError("ESCROW_ID_SECRET (>= 32 bytes) is required when ESCROW_CONTRACT_ID is set")
+        unit = self.escrow_deadline_unit_seconds
+        if not unit <= self.escrow_review_window_seconds <= 14 * unit:
+            raise ValueError(
+                "ESCROW_REVIEW_WINDOW_SECONDS must be within the contract's bounds (1 to 14 units)"
+            )
         if self.stellar_operator_secret is None or self.stellar_operator_address is None:
             raise ValueError("STELLAR_OPERATOR_SECRET and STELLAR_OPERATOR_ADDRESS are required for escrow")
         try:

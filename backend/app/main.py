@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,8 +16,11 @@ from app.core.container import Services, build_services
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.modules.bookings import service as bookings_service
 from app.modules.chat import service as chat_service
 from app.modules.chat.hub import ConversationHub
+from app.modules.payments import service as payments_service
+from app.modules.payments.reconciler import Reconciler, ReconcilerLoop
 from app.modules.quotes import service as quotes_service
 from app.modules.stellar.context import StellarContext, build_stellar, startup_check
 
@@ -44,7 +48,13 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await startup_check(stellar)
+        loop: ReconcilerLoop | None = None
+        if stellar.gateway is not None and settings.reconciler_enabled:
+            loop = ReconcilerLoop(app.state.reconciler)
+            loop.start()
         yield
+        if loop is not None:
+            await loop.stop()
         if stellar.gateway is not None:
             await stellar.gateway.close()
         await services.engine.dispose()
@@ -61,6 +71,16 @@ def create_app(
     app.state.services = services
     app.state.chat_hub = ConversationHub()
     app.state.stellar = stellar
+    app.state.reconciler = Reconciler(services, stellar, hub=app.state.chat_hub) if stellar.gateway else None
+
+    async def payment_extension(session: Any, booking: Any, actor: Any, now: Any) -> Any:
+        return await payments_service.bundle_extension(session, stellar, booking, actor, now)
+
+    bookings_service.register_payment_hooks(
+        extension=payment_extension,
+        funding_guard=payments_service.funding_in_flight,
+        terms=payments_service.terms_for_booking,
+    )
     chat_service.register_quotes_lookup(quotes_service.conversation_quotes_hook(services))
     register_error_handlers(app)
 

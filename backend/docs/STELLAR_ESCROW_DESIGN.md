@@ -472,3 +472,30 @@ Refused on-chain during simulation, as required: a second `release` (`InvalidSta
 - `finalize_expired` emits one `expired` event (with the resulting `status`) rather than `released`/`refunded`.
 - Chain events are keyed by `(tx_hash, event_index)` where `event_index` comes from the RPC event ID. Both ingestion paths (transaction confirmation and the cursor scan) read events through `getEvents`, so the key is identical (§10).
 - SEP-53 verification passes the published SEP-53 test vector and generated keys. **Still to do before Issue 5 closes:** a signature captured from a real Freighter wallet (it needs a browser wallet, which this environment does not have).
+
+## 14. Issue 6: payments through the API on testnet (2026-11-18)
+
+`UNIFIX_TESTNET=1 uv run pytest -m testnet` drives the HTTP API with the real RPC gateway and reconciler against the `test` and `short` deployments (3 passed):
+
+| Step | Transaction |
+|---|---|
+| Happy path: fund (operator co-signed, through `POST /bookings/{id}/escrow` → `/escrows/{id}/funding`) | [`ce3161a8fdde…`](https://stellar.expert/explorer/testnet/tx/ce3161a8fdde28be7474c12320e4410fcd50a5e2a22a70387878e1944d717776) |
+| Happy path: submit_completion (professional-signed evidence hash) | [`66d107ed1de6…`](https://stellar.expert/explorer/testnet/tx/66d107ed1de6f1c4232c4c8e1e789ef14f7d0d29e2f9317be729452f09fc60a9) |
+| Happy path: release (customer approval) → `COMPLETED`, receipts FUNDING + RELEASE | [`6186dbcb8d74…`](https://stellar.expert/explorer/testnet/tx/6186dbcb8d744843c693e7d48dfd95650cbda7d907a7fcac27817f6eabf9cc7e) |
+| Refund path: fund | [`1566ff6e3a64…`](https://stellar.expert/explorer/testnet/tx/1566ff6e3a64a45c0fa549b775da297a87bf39842ccd6dbc04e7ed41ee4bce77) |
+| Refund path: professional refund → `REFUNDED` | [`43106756a182…`](https://stellar.expert/explorer/testnet/tx/43106756a182357c961ca057dfc1d8f373e17a0e50715dda85d919298a2adbc0) |
+| Keeper path (`short` deployment): fund | [`04c17c82eea9…`](https://stellar.expert/explorer/testnet/tx/04c17c82eea934e35043d88f9d94c89681afb1a9bce0741f2ddf93a4e6c205b8) |
+| Keeper path: submit_completion | [`d9785c005326…`](https://stellar.expert/explorer/testnet/tx/d9785c005326dfd7cd6498d9d59840d2c3ed6546f62a3457b593b8d64aedf785) |
+| Keeper path: `finalize_expired` submitted by the keeper after the review window → `COMPLETED` (auto-release) | [`cc6a6be88472…`](https://stellar.expert/explorer/testnet/tx/cc6a6be88472fb372a11baba449f8c61bea775e730b089b474dcdb605a3699da) |
+
+For each run the tests also check that the on-chain `terms_hash` equals the `terms_hash` returned by `GET /bookings/{id}/agreement`, and that every receipt has `is_demo_rate: true`.
+
+**Implementation notes (Issue 6):**
+
+- Every chain action is prepare → sign → submit. Prepared transactions are stored with their hash; a submitted envelope must hash to the prepared one. The signed envelope is stored before sending, so an RPC outage or a crash after commit is resent by the reconciler (`SUBMITTED` → `PENDING` → `CONFIRMED`/`FAILED`/`EXPIRED`).
+- The transaction-result path reads the confirmed ledger's events through `getEvents`, like the cursor scan, so both produce the same `(tx_hash, event_index)` key.
+- A retention gap is detected from `getHealth` before calling `getEvents` (a real RPC rejects a stale cursor); the full sweep then synthesises `STATE_SYNC` events from `get_escrow`.
+- The booking table gains chain-only `FUNDED`/`IN_PROGRESS` → `COMPLETED`, because the contract lets a customer release before completion is submitted (for example from another wallet). The API itself only offers release after completion is submitted.
+- D16b implemented: the keeper finalises undisputed deadlines `KEEPER_DELAY_SECONDS` (default 15 min) after maturity, with the operator account as source; the in-flight unique index makes a second keeper's attempt a no-op. D21 implemented: a professional may refund at any time before settlement.
+- `ESCROW_DEADLINE_UNIT_SECONDS` must match the contract build (86400; 60 only for the short-windows test build, refused in production). With 60, `refund_after` is one hour after preparation.
+- Funding a booking whose payment window has expired is prevented while a funding transaction is in flight (the booking can neither be cancelled nor expire). If funds still arrive for a cancelled booking (for example funded from another tool), the event is marked `CONFLICT` and audited; the customer's money stays protected by the on-chain deadline refund.

@@ -90,9 +90,13 @@ async def verify(
     gateway = stellar.require()
     now = services.clock.now()
     challenge = await repository.consume_challenge(
-        session, user_id=caller.user_id, address=data.address, network=stellar.network,
-        message=data.message, now=now,
-    )  # fmt: skip
+        session,
+        user_id=caller.user_id,
+        address=data.address,
+        network=stellar.network,
+        message=data.message,
+        now=now,
+    )
     await session.commit()  # consumed even if the signature turns out to be wrong
     if challenge is None:
         raise BadRequest(
@@ -129,9 +133,13 @@ async def verify(
             raise Conflict("This wallet is linked to another account.", code="WALLET_IN_USE") from exc
         raise
     await audit.record(
-        session, action="wallet.verified", entity_type="wallet", entity_id=wallet.id,
-        actor_user_id=caller.user_id, data={"address": data.address, "network": stellar.network},
-    )  # fmt: skip
+        session,
+        action="wallet.verified",
+        entity_type="wallet",
+        entity_id=wallet.id,
+        actor_user_id=caller.user_id,
+        data={"address": data.address, "network": stellar.network},
+    )
     await session.commit()
     return wallet
 
@@ -152,10 +160,15 @@ async def list_wallets(
                 logger.warning("wallets.horizon_unavailable")
         result.append(
             WalletOut(
-                id=wallet.id, address=wallet.address, network=wallet.network, verified_at=wallet.verified_at,
-                is_primary=wallet.is_primary, account_exists=exists, has_escrow_trustline=trustline,
+                id=wallet.id,
+                address=wallet.address,
+                network=wallet.network,
+                verified_at=wallet.verified_at,
+                is_primary=wallet.is_primary,
+                account_exists=exists,
+                has_escrow_trustline=trustline,
             )
-        )  # fmt: skip
+        )
     return result
 
 
@@ -180,9 +193,13 @@ async def remove(
         if remaining:
             remaining[0].is_primary = True
     await audit.record(
-        session, action="wallet.removed", entity_type="wallet", entity_id=wallet.id,
-        actor_user_id=caller.user_id, data={"address": wallet.address},
-    )  # fmt: skip
+        session,
+        action="wallet.removed",
+        entity_type="wallet",
+        entity_id=wallet.id,
+        actor_user_id=caller.user_id,
+        data={"address": wallet.address},
+    )
     await session.commit()
 
 
@@ -192,3 +209,8 @@ async def primary_address(
     """The user's primary verified wallet (a deployment uses exactly one network)."""
     wallet = await repository.primary(session, user_id, network)
     return wallet.address if wallet else None
+
+
+async def owns(session: AsyncSession, user_id: uuid.UUID, address: str, network: str) -> bool:
+    wallet = await repository.active_by_address(session, network, address)
+    return wallet is not None and wallet.user_id == user_id

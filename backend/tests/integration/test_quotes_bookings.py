@@ -134,7 +134,7 @@ async def test_accept_creates_booking_with_verifiable_agreement(
     assert booking["address"] == "Room 214, Moremi Hall"
     assert bundle["quote"]["status"] == "ACCEPTED"
     assert bundle["quote"]["agreement_hash"] == booking["agreement_hash"]
-    assert bundle["allowed_actions"] == ["CANCEL"]
+    assert bundle["allowed_actions"] == ["CANCEL", "FUND"]
     assert bundle["escrow"] is None
     assert [event["label"] for event in booking["timeline"]] == ["Quote accepted"]
 
@@ -426,7 +426,9 @@ async def test_database_enforces_immutability(
 
 
 async def test_no_route_can_set_a_booking_status(client: httpx.AsyncClient, seeded: Services) -> None:
-    """The only booking mutations are start (FUNDED -> IN_PROGRESS) and pre-payment cancel."""
+    """Direct booking mutations are only start (FUNDED -> IN_PROGRESS) and pre-payment cancel. The
+    payment routes only prepare or submit chain transactions; financial states come from the
+    reconciler (tests/integration/test_payments.py)."""
     paths = create_app(seeded.settings, services=seeded).openapi()["paths"]
     booking_operations = {
         (method.upper(), path)
@@ -440,6 +442,12 @@ async def test_no_route_can_set_a_booking_status(client: httpx.AsyncClient, seed
         ("GET", f"{API}/bookings/{{booking_id}}/agreement"),
         ("POST", f"{API}/bookings/{{booking_id}}/start"),
         ("POST", f"{API}/bookings/{{booking_id}}/cancel"),
+        ("POST", f"{API}/bookings/{{booking_id}}/escrow"),
+        ("POST", f"{API}/bookings/{{booking_id}}/completion"),
+        ("POST", f"{API}/bookings/{{booking_id}}/completion/submit"),
+        ("GET", f"{API}/bookings/{{booking_id}}/completion"),
+        ("POST", f"{API}/bookings/{{booking_id}}/cancellation-requests"),
+        ("GET", f"{API}/bookings/{{booking_id}}/receipts"),
     }
     assert (
         await client.patch(f"{API}/bookings/{uuid.uuid4()}", json={"status": "FUNDED"})

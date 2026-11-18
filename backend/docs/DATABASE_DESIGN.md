@@ -279,6 +279,8 @@ Constraints: `UNIQUE (network, address) WHERE revoked_at IS NULL`; `UNIQUE (user
 
 ### Issue 6 — Escrow, chain transactions, events, ledger, completion, cancellation, receipts
 
+*Implemented in migration `0006`.* Additions to the design below: `escrows.funded_at_chain`, `escrows.failure_reason`; `chain_transactions.signed_envelope_xdr` (a public signed transaction, so the reconciler can resend it), `data` and `submitted_at`; `chain_sync_state.last_error(_at)`; `completion_submissions.evidence_canonical_json` with a hash `CHECK`; `receipts.payload_canonical_json` with a hash `CHECK`. `ledger_entries` and `receipts` are append-only (trigger), `chain_events` cannot be deleted (trigger), and receipt numbers come from the `receipt_number_seq` sequence. The in-flight unique index covers `PREPARED`, `SUBMITTED` and `PENDING`.
+
 **escrows**
 
 | Column | Notes |

@@ -428,6 +428,15 @@ Both parties need a verified wallet before funding.
 
 ## 9. Escrow and payments — Issues 6 and 7
 
+**Issue 6 implemented** (funding, completion, release, refund, extend, cancellation requests, receipts; disputes and resolution arrive with Issue 7). Notes:
+
+- Release, refund and extend use one route each: an empty body (or `{new_refund_after}` for extend) prepares and returns `{escrow, unsigned_xdr, tx_hash, valid_until}`; `{signed_xdr}` submits and returns the `Escrow`. Funding submits at `POST /escrows/{id}/funding`; completion at `POST /bookings/{id}/completion/submit`.
+- Preparing again while a prepared transaction is still valid returns the same one. A transaction is valid for `ESCROW_TX_VALID_SECONDS` (300 s).
+- Errors: `400 TX_MISMATCH`, `409 TX_EXPIRED`, `409 TX_IN_FLIGHT`, `409 NOTHING_PREPARED`, `409 BOOKING_NOT_PAYABLE`, `409 ALREADY_FUNDED`, `409 WALLET_REQUIRED`, `409 PROFESSIONAL_WALLET_MISSING`, `409 WALLET_NO_TRUSTLINE`, `409 SAME_WALLET`, `409 FX_RATE_UNAVAILABLE`, `409 DEADLINE_TOO_FAR`, `409 RELEASE_NOT_ALLOWED`, `409 REFUND_NOT_ALLOWED`, `409 EXTEND_NOT_ALLOWED`, `400 INVALID_DEADLINE`, `409 FUNDING_IN_PROGRESS` (cancelling while a payment may land), `409 CANCELLATION_OPEN`, `403 EMAIL_NOT_VERIFIED`, `502 CONTRACT_<ERROR>` (the contract refused it in simulation, e.g. `CONTRACT_INVALID_STATE`), `502 CHAIN_REJECTED`, `503 CHAIN_UNAVAILABLE`, `503 ESCROW_NOT_CONFIGURED`. No state changes on any 4xx/5xx.
+- `GET /bookings/{id}/completion` returns the latest evidence (`evidence_json` is the exact canonical bytes behind `evidence_hash`). `Receipt` also carries `payload_json`, the exact bytes behind `payload_hash`.
+- `BookingBundle.escrow` is the `Escrow` below (or `null`). `allowed_actions` adds `FUND`, `SUBMIT_COMPLETION`, `APPROVE_RELEASE`, `REFUND`, `EXTEND_DEADLINE`, `REQUEST_CANCELLATION`, `DECLINE_CANCELLATION`; `CANCEL` disappears while a funding transaction is in flight.
+- `GET /bookings/{id}/agreement` adds `escrow_terms_json` and `terms_hash` once an escrow is prepared.
+
 Every chain action is **prepare → sign in Freighter → submit**. Keep polling `GET /bookings/{id}` while `escrow.reconciliation === "PENDING_CONFIRMATION"`.
 
 | Action | Signer | Prepare → `{…, unsigned_xdr}` | Submit `{signed_xdr}` | Booking after confirmation |

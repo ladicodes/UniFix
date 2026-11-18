@@ -322,6 +322,34 @@
         "title": "AgreementProof",
         "type": "object"
       },
+      "AssetOut": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "decimals": {
+            "title": "Decimals",
+            "type": "integer"
+          },
+          "issuer": {
+            "title": "Issuer",
+            "type": "string"
+          },
+          "sac_contract_id": {
+            "title": "Sac Contract Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "issuer",
+          "sac_contract_id",
+          "decimals"
+        ],
+        "title": "AssetOut",
+        "type": "object"
+      },
       "AuthResponse": {
         "properties": {
           "access_token": {
@@ -410,14 +438,12 @@
           "escrow": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/EscrowOut"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Escrow"
+            ]
           },
           "professional": {
             "$ref": "#/components/schemas/ProfessionalOut"
@@ -995,6 +1021,105 @@
         "title": "CancelBookingIn",
         "type": "object"
       },
+      "CancellationRequestIn": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CancellationRequestIn",
+        "type": "object"
+      },
+      "CancellationRequestOut": {
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decline_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decline Reason"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "requested_by": {
+            "format": "uuid",
+            "title": "Requested By",
+            "type": "string"
+          },
+          "responded_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Responded At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CancellationStatus"
+          }
+        },
+        "required": [
+          "id",
+          "booking_id",
+          "requested_by",
+          "reason",
+          "status",
+          "decline_reason",
+          "created_at",
+          "expires_at",
+          "responded_at"
+        ],
+        "title": "CancellationRequestOut",
+        "type": "object"
+      },
+      "CancellationStatus": {
+        "enum": [
+          "OPEN",
+          "ACCEPTED",
+          "DECLINED",
+          "EXPIRED",
+          "WITHDRAWN"
+        ],
+        "title": "CancellationStatus",
+        "type": "string"
+      },
       "CategoryCreateIn": {
         "additionalProperties": false,
         "properties": {
@@ -1238,6 +1363,102 @@
         "title": "CheckStatus",
         "type": "string"
       },
+      "ChecklistItem": {
+        "additionalProperties": false,
+        "properties": {
+          "done": {
+            "title": "Done",
+            "type": "boolean"
+          },
+          "label": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "done"
+        ],
+        "title": "ChecklistItem",
+        "type": "object"
+      },
+      "CompletionOut": {
+        "properties": {
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItem"
+            },
+            "title": "Checklist",
+            "type": "array"
+          },
+          "evidence_hash": {
+            "title": "Evidence Hash",
+            "type": "string"
+          },
+          "evidence_json": {
+            "description": "Exact canonical bytes that evidence_hash covers",
+            "title": "Evidence Json",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "notes": {
+            "title": "Notes",
+            "type": "string"
+          },
+          "photos": {
+            "items": {
+              "$ref": "#/components/schemas/FileRef"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
+          "prepared_at": {
+            "format": "date-time",
+            "title": "Prepared At",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SubmissionStatus"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          }
+        },
+        "required": [
+          "id",
+          "booking_id",
+          "notes",
+          "checklist",
+          "photos",
+          "evidence_hash",
+          "evidence_json",
+          "status",
+          "prepared_at",
+          "submitted_at"
+        ],
+        "title": "CompletionOut",
+        "type": "object"
+      },
       "ConversationDetail": {
         "properties": {
           "conversation": {
@@ -1405,6 +1626,22 @@
         "title": "Currency",
         "type": "string"
       },
+      "DeclineCancellationIn": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "DeclineCancellationIn",
+        "type": "object"
+      },
       "EndCallIn": {
         "additionalProperties": false,
         "properties": {
@@ -1466,6 +1703,289 @@
           "code"
         ],
         "title": "ErrorResponse",
+        "type": "object"
+      },
+      "EscrowOut": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetOut"
+          },
+          "asset_amount": {
+            "title": "Asset Amount",
+            "type": "string"
+          },
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "contract_id": {
+            "title": "Contract Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "customer_refund": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customer Refund"
+          },
+          "customer_wallet": {
+            "title": "Customer Wallet",
+            "type": "string"
+          },
+          "disputed_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disputed At"
+          },
+          "escrow_id_hex": {
+            "title": "Escrow Id Hex",
+            "type": "string"
+          },
+          "failure_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failure Reason"
+          },
+          "fee_stroops": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Stroops"
+          },
+          "fiat": {
+            "$ref": "#/components/schemas/FiatOut"
+          },
+          "fx": {
+            "$ref": "#/components/schemas/FxOut"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "professional_payout": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Professional Payout"
+          },
+          "professional_wallet": {
+            "title": "Professional Wallet",
+            "type": "string"
+          },
+          "reconciliation": {
+            "$ref": "#/components/schemas/Reconciliation"
+          },
+          "refund_after": {
+            "title": "Refund After",
+            "type": "integer"
+          },
+          "review_deadline": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Deadline"
+          },
+          "settled_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settled By"
+          },
+          "state": {
+            "$ref": "#/components/schemas/EscrowState"
+          },
+          "terms_hash": {
+            "title": "Terms Hash",
+            "type": "string"
+          },
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/EscrowTransactionOut"
+            },
+            "title": "Transactions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "booking_id",
+          "contract_id",
+          "escrow_id_hex",
+          "state",
+          "asset",
+          "asset_amount",
+          "fiat",
+          "fx",
+          "fee_stroops",
+          "customer_wallet",
+          "professional_wallet",
+          "refund_after",
+          "review_deadline",
+          "disputed_at",
+          "reconciliation",
+          "failure_reason",
+          "settled_by",
+          "professional_payout",
+          "customer_refund",
+          "terms_hash",
+          "transactions",
+          "created_at"
+        ],
+        "title": "EscrowOut",
+        "type": "object"
+      },
+      "EscrowState": {
+        "enum": [
+          "CREATED",
+          "FUNDED",
+          "COMPLETION_SUBMITTED",
+          "DISPUTED",
+          "RELEASED",
+          "REFUNDED",
+          "RESOLVED"
+        ],
+        "title": "EscrowState",
+        "type": "string"
+      },
+      "EscrowTransactionOut": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "explorer_url": {
+            "title": "Explorer Url",
+            "type": "string"
+          },
+          "hash": {
+            "title": "Hash",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/TxKind"
+          },
+          "ledger": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ledger"
+          },
+          "status": {
+            "description": "PENDING | CONFIRMED | FAILED | EXPIRED (prepared and submitted show as PENDING)",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "hash",
+          "ledger",
+          "at",
+          "status",
+          "explorer_url"
+        ],
+        "title": "EscrowTransactionOut",
+        "type": "object"
+      },
+      "ExtendIn": {
+        "additionalProperties": false,
+        "properties": {
+          "new_refund_after": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Unix seconds; prepare only",
+            "title": "New Refund After"
+          },
+          "signed_xdr": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Xdr"
+          }
+        },
+        "title": "ExtendIn",
+        "type": "object"
+      },
+      "FiatOut": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount_minor",
+          "currency"
+        ],
+        "title": "FiatOut",
         "type": "object"
       },
       "FieldError": {
@@ -1571,6 +2091,45 @@
           "purpose"
         ],
         "title": "FileRef",
+        "type": "object"
+      },
+      "FxOut": {
+        "properties": {
+          "base": {
+            "title": "Base",
+            "type": "string"
+          },
+          "is_demo_rate": {
+            "title": "Is Demo Rate",
+            "type": "boolean"
+          },
+          "locked_at": {
+            "format": "date-time",
+            "title": "Locked At",
+            "type": "string"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          },
+          "rate": {
+            "title": "Rate",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rate",
+          "base",
+          "quote",
+          "source",
+          "is_demo_rate",
+          "locked_at"
+        ],
+        "title": "FxOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -1963,6 +2522,141 @@
           }
         },
         "title": "PortfolioUpdateIn",
+        "type": "object"
+      },
+      "PrepareCompletionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/ChecklistItem"
+            },
+            "maxItems": 30,
+            "title": "Checklist",
+            "type": "array"
+          },
+          "notes": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Notes",
+            "type": "string"
+          },
+          "photo_file_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Photo File Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "notes"
+        ],
+        "title": "PrepareCompletionIn",
+        "type": "object"
+      },
+      "PrepareFundingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "customer_wallet": {
+            "anyOf": [
+              {
+                "maxLength": 56,
+                "minLength": 56,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One of your verified wallets; default primary",
+            "title": "Customer Wallet"
+          }
+        },
+        "title": "PrepareFundingIn",
+        "type": "object"
+      },
+      "PrepareOrSubmitIn": {
+        "additionalProperties": false,
+        "description": "Empty body prepares; ``{signed_xdr}`` submits what was prepared.",
+        "properties": {
+          "signed_xdr": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Xdr"
+          }
+        },
+        "title": "PrepareOrSubmitIn",
+        "type": "object"
+      },
+      "PreparedCompletionOut": {
+        "properties": {
+          "escrow": {
+            "$ref": "#/components/schemas/EscrowOut"
+          },
+          "submission": {
+            "$ref": "#/components/schemas/CompletionOut"
+          },
+          "tx_hash": {
+            "title": "Tx Hash",
+            "type": "string"
+          },
+          "unsigned_xdr": {
+            "title": "Unsigned Xdr",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "submission",
+          "escrow",
+          "unsigned_xdr",
+          "tx_hash",
+          "valid_until"
+        ],
+        "title": "PreparedCompletionOut",
+        "type": "object"
+      },
+      "PreparedOut": {
+        "properties": {
+          "escrow": {
+            "$ref": "#/components/schemas/EscrowOut"
+          },
+          "tx_hash": {
+            "title": "Tx Hash",
+            "type": "string"
+          },
+          "unsigned_xdr": {
+            "title": "Unsigned Xdr",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "escrow",
+          "unsigned_xdr",
+          "tx_hash",
+          "valid_until"
+        ],
+        "title": "PreparedOut",
         "type": "object"
       },
       "ProfessionalCreateIn": {
@@ -3139,6 +3833,102 @@
         "title": "ReadyOut",
         "type": "object"
       },
+      "ReceiptKind": {
+        "enum": [
+          "FUNDING",
+          "RELEASE",
+          "REFUND",
+          "RESOLUTION"
+        ],
+        "title": "ReceiptKind",
+        "type": "string"
+      },
+      "ReceiptOut": {
+        "properties": {
+          "asset": {
+            "$ref": "#/components/schemas/AssetOut"
+          },
+          "asset_amount": {
+            "title": "Asset Amount",
+            "type": "string"
+          },
+          "booking_id": {
+            "format": "uuid",
+            "title": "Booking Id",
+            "type": "string"
+          },
+          "fiat": {
+            "$ref": "#/components/schemas/FiatOut"
+          },
+          "fx": {
+            "additionalProperties": true,
+            "description": "{rate, source, is_demo_rate}",
+            "title": "Fx",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ReceiptKind"
+          },
+          "ledger": {
+            "title": "Ledger",
+            "type": "integer"
+          },
+          "number": {
+            "title": "Number",
+            "type": "string"
+          },
+          "payload_hash": {
+            "title": "Payload Hash",
+            "type": "string"
+          },
+          "payload_json": {
+            "description": "Exact canonical bytes that payload_hash covers",
+            "title": "Payload Json",
+            "type": "string"
+          },
+          "tx_hash": {
+            "title": "Tx Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "kind",
+          "booking_id",
+          "asset",
+          "asset_amount",
+          "fiat",
+          "fx",
+          "tx_hash",
+          "ledger",
+          "issued_at",
+          "payload_hash",
+          "payload_json"
+        ],
+        "title": "ReceiptOut",
+        "type": "object"
+      },
+      "Reconciliation": {
+        "enum": [
+          "AWAITING_SIGNATURE",
+          "PENDING_CONFIRMATION",
+          "CONFIRMED",
+          "FAILED"
+        ],
+        "title": "Reconciliation",
+        "type": "string"
+      },
       "RegisterIn": {
         "additionalProperties": false,
         "properties": {
@@ -3946,6 +4736,50 @@
         "title": "StartCallIn",
         "type": "object"
       },
+      "SubmissionStatus": {
+        "enum": [
+          "PREPARED",
+          "SUBMITTED",
+          "APPROVED",
+          "DISPUTED",
+          "SUPERSEDED"
+        ],
+        "title": "SubmissionStatus",
+        "type": "string"
+      },
+      "SubmitCompletionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "signed_xdr": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Signed Xdr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signed_xdr"
+        ],
+        "title": "SubmitCompletionIn",
+        "type": "object"
+      },
+      "SubmitIn": {
+        "additionalProperties": false,
+        "properties": {
+          "signed_xdr": {
+            "description": "The envelope signed in Freighter, unchanged",
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Signed Xdr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signed_xdr"
+        ],
+        "title": "SubmitIn",
+        "type": "object"
+      },
       "TicketIn": {
         "additionalProperties": false,
         "properties": {
@@ -4064,6 +4898,20 @@
         ],
         "title": "TokenIn",
         "type": "object"
+      },
+      "TxKind": {
+        "enum": [
+          "FUND",
+          "SUBMIT_COMPLETION",
+          "RELEASE",
+          "REFUND",
+          "EXTEND",
+          "DISPUTE",
+          "RESOLVE",
+          "FINALIZE"
+        ],
+        "title": "TxKind",
+        "type": "string"
       },
       "UpdateMeIn": {
         "additionalProperties": false,
@@ -6514,6 +7362,634 @@
         ]
       }
     },
+    "/api/v1/bookings/{booking_id}/cancellation-requests": {
+      "post": {
+        "operationId": "request_cancellation_api_v1_bookings__booking_id__cancellation_requests_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancellationRequestIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Customer asks to cancel a funded booking (the professional refunds or declines; 48 h)",
+        "tags": [
+          "escrow"
+        ]
+      }
+    },
+    "/api/v1/bookings/{booking_id}/completion": {
+      "get": {
+        "operationId": "get_completion_api_v1_bookings__booking_id__completion_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/CompletionOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Completion Api V1 Bookings  Booking Id  Completion Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "The latest completion evidence for a booking (null if none)",
+        "tags": [
+          "completion"
+        ]
+      },
+      "post": {
+        "operationId": "prepare_completion_api_v1_bookings__booking_id__completion_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareCompletionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparedCompletionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Record completion evidence and prepare submit_completion for the professional to sign \ud83d\udcb0",
+        "tags": [
+          "completion"
+        ]
+      }
+    },
+    "/api/v1/bookings/{booking_id}/completion/submit": {
+      "post": {
+        "operationId": "submit_completion_api_v1_bookings__booking_id__completion_submit_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitCompletionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscrowOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Submit the professional-signed submit_completion transaction \ud83d\udcb0",
+        "tags": [
+          "completion"
+        ]
+      }
+    },
+    "/api/v1/bookings/{booking_id}/escrow": {
+      "post": {
+        "operationId": "prepare_funding_api_v1_bookings__booking_id__escrow_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareFundingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreparedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Prepare the funding transaction for the customer's wallet to sign \ud83d\udcb0",
+        "tags": [
+          "escrow"
+        ]
+      }
+    },
+    "/api/v1/bookings/{booking_id}/receipts": {
+      "get": {
+        "operationId": "receipts_api_v1_bookings__booking_id__receipts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "booking_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Booking Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReceiptOut"
+                  },
+                  "title": "Response Receipts Api V1 Bookings  Booking Id  Receipts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Funding, release, refund and resolution receipts (from confirmed chain data only)",
+        "tags": [
+          "escrow"
+        ]
+      }
+    },
     "/api/v1/bookings/{booking_id}/start": {
       "post": {
         "operationId": "start_booking_api_v1_bookings__booking_id__start_post",
@@ -6845,6 +8321,104 @@
         "summary": "Active campuses",
         "tags": [
           "campuses"
+        ]
+      }
+    },
+    "/api/v1/cancellation-requests/{request_id}/decline": {
+      "post": {
+        "operationId": "decline_cancellation_api_v1_cancellation_requests__request_id__decline_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineCancellationIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CancellationRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Professional declines a cancellation request",
+        "tags": [
+          "escrow"
         ]
       }
     },
@@ -7617,6 +9191,610 @@
         "summary": "Report a conversation or one of its messages",
         "tags": [
           "conversations"
+        ]
+      }
+    },
+    "/api/v1/escrows/{escrow_id}": {
+      "get": {
+        "operationId": "get_escrow_api_v1_escrows__escrow_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "escrow_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Escrow Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscrowOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "An escrow and its transactions",
+        "tags": [
+          "escrow"
+        ]
+      }
+    },
+    "/api/v1/escrows/{escrow_id}/extend": {
+      "post": {
+        "operationId": "extend_api_v1_escrows__escrow_id__extend_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "escrow_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Escrow Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PreparedOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EscrowOut"
+                    }
+                  ],
+                  "title": "Response Extend Api V1 Escrows  Escrow Id  Extend Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Customer: {new_refund_after} prepares a deadline extension, {signed_xdr} submits it \ud83d\udcb0",
+        "tags": [
+          "escrow"
+        ]
+      }
+    },
+    "/api/v1/escrows/{escrow_id}/funding": {
+      "post": {
+        "operationId": "submit_funding_api_v1_escrows__escrow_id__funding_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "escrow_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Escrow Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EscrowOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Submit the signed funding transaction; the booking becomes FUNDED on confirmation \ud83d\udcb0",
+        "tags": [
+          "escrow"
+        ]
+      }
+    },
+    "/api/v1/escrows/{escrow_id}/refund": {
+      "post": {
+        "operationId": "refund_api_v1_escrows__escrow_id__refund_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "escrow_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Escrow Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareOrSubmitIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PreparedOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EscrowOut"
+                    }
+                  ],
+                  "title": "Response Refund Api V1 Escrows  Escrow Id  Refund Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Professional: {} prepares a full refund, {signed_xdr} submits it \ud83d\udcb0",
+        "tags": [
+          "escrow"
+        ]
+      }
+    },
+    "/api/v1/escrows/{escrow_id}/release": {
+      "post": {
+        "operationId": "release_api_v1_escrows__escrow_id__release_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "escrow_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Escrow Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrepareOrSubmitIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PreparedOut"
+                    },
+                    {
+                      "$ref": "#/components/schemas/EscrowOut"
+                    }
+                  ],
+                  "title": "Response Release Api V1 Escrows  Escrow Id  Release Post"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Missing, invalid or expired credentials"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not allowed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not found or not visible to the caller"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflicts with current state"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream (Stellar) error; nothing changed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream unavailable or feature not configured; nothing changed"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Customer: {} prepares the release, {signed_xdr} submits it \ud83d\udcb0",
+        "tags": [
+          "escrow"
         ]
       }
     },

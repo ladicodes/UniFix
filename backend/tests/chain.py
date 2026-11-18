@@ -106,6 +106,10 @@ class FakeChain:
         self.pending.clear()
         return applied
 
+    def drop_pending(self) -> None:
+        """The queued transactions never make it into a ledger (e.g. dropped by the network)."""
+        self.pending.clear()
+
     def invoke(self, function: Function, args: list[stellar_xdr.SCVal], *, signer: str) -> str:
         """An out-of-band transaction (another wallet or tool), confirmed in the next ledger."""
         account = self.accounts.setdefault(signer, _Account())
@@ -203,9 +207,12 @@ class FakeChain:
     async def get_config(self, source: str) -> OnchainConfig:
         self._online()
         return OnchainConfig(
-            admin=self.arbiter, arbiter=self.arbiter, operator=self.operator,
-            token=self.token_contract_id, review_window=self.review_window,
-        )  # fmt: skip
+            admin=self.arbiter,
+            arbiter=self.arbiter,
+            operator=self.operator,
+            token=self.token_contract_id,
+            review_window=self.review_window,
+        )
 
     async def contract_exists(self, contract_id: str) -> bool:
         self._online()
@@ -277,15 +284,37 @@ class FakeChain:
             if self.balances.get(customer, 0) < amount:
                 raise ContractFailure("InsufficientBalance")
             self.escrows[key] = OnchainEscrow(
-                customer=customer, professional=professional, amount=amount, terms_hash=terms_hash.hex(),
-                status=St.FUNDED, funded_at=now, refund_after=refund_after, review_window=self.review_window,
-                review_deadline=None, disputed_at=None, evidence_hash=None, disputed_by=None,
-                professional_payout=0, customer_refund=0, settled_by=None,
-            )  # fmt: skip
+                customer=customer,
+                professional=professional,
+                amount=amount,
+                terms_hash=terms_hash.hex(),
+                status=St.FUNDED,
+                funded_at=now,
+                refund_after=refund_after,
+                review_window=self.review_window,
+                review_deadline=None,
+                disputed_at=None,
+                evidence_hash=None,
+                disputed_by=None,
+                professional_payout=0,
+                customer_refund=0,
+                settled_by=None,
+            )
             self._move(customer, self.contract_id, amount)
-            return [("funded", key, {"amount": amount, "customer": customer, "professional": professional,
-                                     "refund_after": refund_after, "review_window": self.review_window,
-                                     "terms_hash": terms_hash})]  # fmt: skip
+            return [
+                (
+                    "funded",
+                    key,
+                    {
+                        "amount": amount,
+                        "customer": customer,
+                        "professional": professional,
+                        "refund_after": refund_after,
+                        "review_window": self.review_window,
+                        "terms_hash": terms_hash,
+                    },
+                )
+            ]
         escrow = self.escrows.get(key)  # type: ignore[arg-type]
         if escrow is None:
             raise ContractFailure("NotFound")
@@ -366,9 +395,12 @@ class FakeChain:
     def _settle(self, key: bytes, escrow: OnchainEscrow, status: St, payout: int, by: str) -> dict[str, Any]:
         refund = escrow.amount - payout
         self.escrows[key] = replace(
-            escrow, status=status, professional_payout=payout, customer_refund=refund,
+            escrow,
+            status=status,
+            professional_payout=payout,
+            customer_refund=refund,
             settled_by=contract.settled_by_name(by),
-        )  # fmt: skip
+        )
         if payout:
             self._move(self.contract_id, escrow.professional, payout)
         if refund:

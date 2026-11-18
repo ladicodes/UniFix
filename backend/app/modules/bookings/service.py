@@ -8,7 +8,7 @@ events. Bookings wait in PENDING_PAYMENT until then.
 from __future__ import annotations
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -44,6 +44,28 @@ from app.modules.requests import service as requests
 from app.modules.users.models import Role
 
 PAYMENT_WINDOW = timedelta(days=7)
+
+# Payments (Issue 6) sits above bookings in the module graph; it plugs in through these hooks,
+# registered by the app factory.
+PaymentExtension = Callable[
+    [AsyncSession, Booking, TimelineActor | None, datetime], Awaitable[tuple[Any, list[str]]]
+]
+FundingGuard = Callable[[AsyncSession, uuid.UUID], Awaitable[bool]]
+TermsLookup = Callable[[AsyncSession, uuid.UUID], Awaitable[tuple[str, str] | None]]
+_payment_extension: PaymentExtension | None = None
+_funding_in_flight: FundingGuard | None = None
+_terms_lookup: TermsLookup | None = None
+
+
+def register_payment_hooks(
+    *, extension: PaymentExtension, funding_guard: FundingGuard, terms: TermsLookup
+) -> None:
+    global _payment_extension, _funding_in_flight, _terms_lookup
+    _payment_extension, _funding_in_flight, _terms_lookup = extension, funding_guard, terms
+
+
+async def _funding_pending(session: AsyncSession, booking_id: uuid.UUID) -> bool:
+    return _funding_in_flight is not None and await _funding_in_flight(session, booking_id)
 
 
 class InvalidTransition(Conflict):
@@ -261,7 +283,11 @@ async def accept_quote(
 
 async def _expire_if_due(session: AsyncSession, services: Services, booking: Booking) -> bool:
     now = services.clock.now()
-    if booking.status == BookingStatus.PENDING_PAYMENT.value and now >= booking.payment_due_by:
+    if (
+        booking.status == BookingStatus.PENDING_PAYMENT.value
+        and now >= booking.payment_due_by
+        and not await _funding_pending(session, booking.id)
+    ):
         await transition(
             session, booking, BookingStatus.CANCELLED, actor=TimelineActor.SYSTEM, actor_user_id=None,
             label="Payment window expired", now=now,
@@ -362,13 +388,21 @@ async def bundles(
             if caller.user_id == booking.customer_id
             else None
         )
+        actions = state.user_actions(status, actor) if actor else []
+        escrow = None
+        if _payment_extension is not None:
+            escrow, extra = await _payment_extension(session, booking, actor, services.clock.now())
+            if "CANCEL" in actions and await _funding_pending(session, booking.id):
+                actions.remove("CANCEL")
+            actions = sorted({*actions, *extra})
         result.append(
             BookingBundle(
                 booking=_booking_out(booking, agreement, events[booking.id], show_address=show_address),
                 quote=quote_outs[booking.quote_id],
                 professional=professional_outs[booking.professional_id],
                 customer=customers[booking.customer_id],
-                allowed_actions=state.user_actions(status, actor) if actor else [],
+                escrow=escrow,
+                allowed_actions=actions,
             )
         )
     return result
@@ -416,7 +450,10 @@ async def agreement_proof(
     booking, _ = await _visible_booking(session, services, caller, booking_id)
     agreement = await quotes_repository.get_agreement(session, booking.agreement_id)
     assert agreement is not None
-    return AgreementProof(agreement_json=agreement.canonical_json, agreement_hash=agreement.agreement_hash)
+    proof = AgreementProof(agreement_json=agreement.canonical_json, agreement_hash=agreement.agreement_hash)
+    if _terms_lookup is not None and (found := await _terms_lookup(session, booking.id)) is not None:
+        proof.escrow_terms_json, proof.terms_hash = found
+    return proof
 
 
 async def active_bookings_hook(
@@ -445,6 +482,9 @@ async def _act(
     actor = _actor_for(caller, booking, professional_user_id)
     if actor is None:
         raise NotFound("Booking not found.")
+    if to is BookingStatus.CANCELLED and await _funding_pending(session, booking.id):
+        raise Conflict("A payment for this booking is being confirmed; it cannot be cancelled now.",
+                       code="FUNDING_IN_PROGRESS")  # fmt: skip
     now = services.clock.now()
     await transition(session, booking, to, actor=actor, actor_user_id=caller.user_id, label=label, now=now)
     if to is BookingStatus.CANCELLED:
@@ -497,4 +537,65 @@ async def cancel(
         BookingStatus.CANCELLED,
         label="Booking cancelled",
         reason=reason,
+    )
+
+
+# ---------------------------------------------------------------- helpers for payments (Issue 6)
+
+
+async def visible_booking(
+    session: AsyncSession,
+    services: Services,
+    caller: AuthContext,
+    booking_id: uuid.UUID,
+    *,
+    for_update: bool = False,
+) -> tuple[Booking, uuid.UUID]:
+    """The booking if the caller is a party or an admin (404 otherwise), plus the professional's user id."""
+    return await _visible_booking(session, services, caller, booking_id, for_update=for_update)
+
+
+async def lock_booking(session: AsyncSession, booking_id: uuid.UUID) -> Booking:
+    booking = await repository.get(session, booking_id, for_update=True)
+    assert booking is not None
+    return booking
+
+
+async def professional_user_id(session: AsyncSession, booking: Booking) -> uuid.UUID:
+    profile = await professionals_repository.get(session, booking.professional_id)
+    assert profile is not None
+    return profile.user_id
+
+
+async def add_timeline_note(
+    session: AsyncSession,
+    booking: Booking,
+    *,
+    label: str,
+    actor: TimelineActor,
+    actor_user_id: uuid.UUID | None,
+    now: datetime,
+    data: dict[str, Any] | None = None,
+) -> None:
+    """A timeline entry that does not change the status (append-only)."""
+    repository.add(
+        session,
+        BookingEvent(
+            booking_id=booking.id, label=label, actor_type=actor.value, actor_user_id=actor_user_id,
+            data=data or {}, created_at=now,
+        ),
+    )  # fmt: skip
+
+
+async def record_completed_job(session: AsyncSession, booking: Booking) -> None:
+    """Called once, in the transaction that moves the booking to COMPLETED (a terminal state)."""
+    await professionals_repository.increment_completed_jobs(session, booking.professional_id)
+
+
+async def is_party(session: AsyncSession, caller: AuthContext, booking_id: uuid.UUID) -> bool:
+    booking = await repository.get(session, booking_id)
+    if booking is None:
+        return False
+    return caller.user_id == booking.customer_id or caller.user_id == await professional_user_id(
+        session, booking
     )

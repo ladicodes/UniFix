@@ -13,6 +13,7 @@ import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
@@ -213,3 +214,12 @@ async def live_server(services: Services, stellar: StellarContext) -> AsyncItera
 @pytest.fixture
 def unique_email() -> str:
     return f"user-{uuid.uuid4().hex[:12]}@example.com"
+
+
+@pytest.fixture
+def reconciler(services: Services, stellar: StellarContext) -> Any:
+    from app.modules.payments import service as payments_service
+    from app.modules.payments.reconciler import Reconciler
+
+    payments_service._send_backoff_seconds = 0  # TRY_AGAIN_LATER retries without real sleeps
+    return Reconciler(services, stellar)

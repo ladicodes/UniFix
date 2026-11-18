@@ -6,7 +6,20 @@ from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, Float, cast, delete, exists, func, insert, literal, null, or_, select
+from sqlalchemy import (
+    ColumnElement,
+    Float,
+    cast,
+    delete,
+    exists,
+    func,
+    insert,
+    literal,
+    null,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.campuses.models import Campus
@@ -376,3 +389,11 @@ async def files_by_id(session: AsyncSession, ids: Sequence[uuid.UUID]) -> dict[u
         return {}
     statement = select(StoredFile).where(StoredFile.id.in_(ids))
     return {file.id: file for file in (await session.execute(statement)).scalars().all()}
+
+
+async def increment_completed_jobs(session: AsyncSession, profile_id: uuid.UUID) -> None:
+    await session.execute(
+        update(ProfessionalProfile)
+        .where(ProfessionalProfile.id == profile_id)
+        .values(completed_jobs=ProfessionalProfile.completed_jobs + 1)
+    )
