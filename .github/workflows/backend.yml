@@ -69,10 +69,17 @@ jobs:
         run: rustup show active-toolchain || rustup toolchain install
       - name: Contract tests
         run: cargo test --locked
+      - name: Stellar CLI (soroban-sdk builds wasm only through it; pinned, checksum-verified)
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -sSfL -o stellar.tar.gz \
+            https://github.com/stellar/stellar-cli/releases/download/v30.0.1/stellar-cli-30.0.1-x86_64-unknown-linux-gnu.tar.gz
+          echo "48c70074020e09af0a3ebbd2bf62d53c9aec47935e49a112d3cd90fb4e37658f  stellar.tar.gz" | sha256sum -c -
+          tar -xzf stellar.tar.gz && sudo install stellar /usr/local/bin/stellar
       - name: Release wasm builds (production and short-windows test build)
         run: |
-          cargo build --locked --release --target wasm32v1-none
-          cargo build --locked --release --target wasm32v1-none --features short-windows
+          stellar contract build
+          stellar contract build --features short-windows
 
   docker:
     runs-on: ubuntu-latest
