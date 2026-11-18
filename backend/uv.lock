@@ -1024,6 +1024,7 @@ dependencies = [
     { name = "boto3" },
     { name = "email-validator" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
@@ -1039,7 +1040,6 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "boto3-stubs", extra = ["s3"] },
-    { name = "httpx" },
     { name = "import-linter" },
     { name = "mypy" },
     { name = "pytest" },
@@ -1054,6 +1054,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.38,<2" },
     { name = "email-validator", specifier = ">=2.2,<3.0" },
     { name = "fastapi", specifier = ">=0.160,<1.0" },
+    { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "pillow", specifier = ">=11,<13" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4.0" },
     { name = "pydantic", specifier = ">=2.11,<3.0" },
@@ -1069,7 +1070,6 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "boto3-stubs", extras = ["s3"], specifier = ">=1.38,<2" },
-    { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "import-linter", specifier = ">=2.3,<3" },
     { name = "mypy", specifier = ">=1.17,<2.0" },
     { name = "pytest", specifier = ">=8.4,<10" },

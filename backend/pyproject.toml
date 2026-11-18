@@ -20,13 +20,13 @@ dependencies = [
     "boto3>=1.38,<2",
     "rfc8785>=0.1.4,<0.2",
     "stellar-sdk>=13",
+    "httpx>=0.28,<0.29",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.4,<10",
     "pytest-asyncio>=1.0,<2",
-    "httpx>=0.28,<0.29",
     "ruff>=0.12,<1.0",
     "mypy>=1.17,<2.0",
     "import-linter>=2.3,<3",
