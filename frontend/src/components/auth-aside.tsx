@@ -128,12 +128,12 @@ export function AuthAside() {
           <div className="mx-auto w-full max-w-lg">
             <p className="text-sm font-semibold text-danfo">How payment works on UniFix</p>
             <h2 className="font-semiwide mt-3 text-4xl font-bold leading-tight">Pay when the job is done.</h2>
-            <p className="mt-3 max-w-md leading-relaxed text-white/70">
+            <p className="mt-3 max-w-md leading-relaxed text-mist">
               Every booking follows the same three steps. The money only moves when the customer approves, or a resolver settles a
               dispute.
             </p>
 
-            <div className="relative mt-10 min-h-[22rem]">
+            <div className="relative mt-10 min-h-88">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={i}
@@ -154,7 +154,7 @@ export function AuthAside() {
                 return (
                   <li key={t}>
                     <button type="button" onClick={() => pick(n)} className="group w-full text-left" aria-current={on ? "step" : undefined}>
-                      <span className="block h-1 overflow-hidden rounded-full bg-white/15">
+                      <span className="block h-1 overflow-hidden rounded-full bg-ink-2">
                         {n < i && <span className="block h-full bg-danfo" />}
                         {on && (
                           <motion.span
@@ -167,10 +167,10 @@ export function AuthAside() {
                         )}
                       </span>
                       <span className="mt-4 flex items-center gap-2">
-                        <Icon className={cn("size-4 transition-colors", on ? "text-danfo" : "text-white/50")} aria-hidden />
-                        <span className={cn("text-sm font-semibold transition-colors", on ? "text-white" : "text-white/60 group-hover:text-white")}>{t}</span>
+                        <Icon className={cn("size-4 transition-colors", on ? "text-danfo" : "text-mist-2")} aria-hidden />
+                        <span className={cn("text-sm font-semibold transition-colors", on ? "text-white" : "text-mist-2 group-hover:text-white")}>{t}</span>
                       </span>
-                      <span className={cn("mt-1 block text-xs leading-relaxed transition-colors", on ? "text-white/75" : "text-white/40")}>{d}</span>
+                      <span className={cn("mt-1 block text-xs leading-relaxed transition-colors", on ? "text-mist" : "text-mist-2")}>{d}</span>
                     </button>
                   </li>
                 );
@@ -178,7 +178,7 @@ export function AuthAside() {
             </ol>
           </div>
         </div>
-        <div className="relative flex items-center justify-between border-t border-white/10 px-10 py-5 text-sm text-white/60 xl:px-16">
+        <div className="relative flex items-center justify-between border-t border-ink-2 px-10 py-5 text-sm text-mist-2 xl:px-16">
           <span className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-lagoon-soft" aria-hidden />
             Escrow runs on a Soroban smart contract

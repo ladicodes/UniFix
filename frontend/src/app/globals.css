@@ -19,8 +19,9 @@
 */
 
 @theme {
-  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  /* The font variables come from next/font in layout.tsx; the fallbacks cover a failed font load. */
+  --font-sans: var(--font-instrument, ui-sans-serif), system-ui, sans-serif;
+  --font-display: var(--font-bricolage, var(--font-instrument, ui-sans-serif)), system-ui, sans-serif;
 
   --color-ink: #17143f;
   --color-ink-2: #3c3967;
@@ -79,6 +80,12 @@
 
 :root {
   color-scheme: light;
+  /* Avatar tints: quiet, carry no meaning, only keep people apart at a glance. */
+  --tint-1: #e8e6fb;
+  --tint-2: #dcefe8;
+  --tint-3: #fbe9da;
+  --tint-4: #dfeaf8;
+  --tint-5: #f1e3f0;
   accent-color: var(--color-stellar);
   caret-color: var(--color-stellar);
 }
@@ -128,7 +135,8 @@ p {
   font-variant-numeric: tabular-nums;
 }
 
-/* The signature: a yellow band means money is held in escrow. Used nowhere else. */
+/* The signature (written decision, README "Design"): a yellow band means money is held in
+   escrow. It is the only gradient in the product and is used nowhere else. */
 @utility hazard {
   background-image: repeating-linear-gradient(-45deg, var(--color-danfo) 0 12px, var(--color-danfo-light) 12px 24px);
   background-size: 34px 34px;
@@ -136,10 +144,7 @@ p {
 
 /* Ticket perforation */
 @utility perf {
-  background-image: radial-gradient(circle, var(--color-ink-4) 1.5px, transparent 1.6px);
-  background-size: 10px 4px;
-  background-repeat: repeat-x;
-  background-position: center;
+  border-top: 2px dotted var(--color-ink-4);
 }
 
 @media (prefers-reduced-motion: no-preference) {

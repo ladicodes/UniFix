@@ -93,7 +93,7 @@ function CustomerPreview() {
   return (
     <div className="w-full rounded-xl bg-paper p-3 text-xs shadow-lift">
       <div className="flex items-center gap-2">
-        <span className="grid size-8 place-items-center rounded-full bg-stellar-soft text-[11px] font-bold text-stellar-ink">TB</span>
+        <span className="grid size-8 place-items-center rounded-full bg-stellar-soft text-xs font-bold text-stellar-ink">TB</span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1 font-semibold text-ink">
             Tunde B. <BadgeCheck className="size-3 text-lagoon" aria-hidden />

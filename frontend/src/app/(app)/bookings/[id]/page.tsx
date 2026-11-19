@@ -41,10 +41,10 @@ const ACTOR_DOT: Record<TimelineEvent["actor"], string> = {
 
 function Timeline({ events }: { events: TimelineEvent[] }) {
   return (
-    <ol className="relative space-y-4 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-line">
+    <ol className="relative space-y-4 before:absolute before:bottom-2 before:left-1.5 before:top-2 before:w-px before:bg-line">
       {[...events].reverse().map((e, i) => (
         <li key={i} className="relative flex gap-4 pl-0">
-          <span className={cn("relative z-10 mt-2 size-[11px] shrink-0 rounded-full ring-4 ring-paper", ACTOR_DOT[e.actor])} aria-hidden />
+          <span className={cn("relative z-10 mt-2 size-3 shrink-0 rounded-full ring-4 ring-paper", ACTOR_DOT[e.actor])} aria-hidden />
           <div>
             <p className="text-base font-semibold">{e.label}</p>
             <p className="text-sm text-ink-3">

@@ -430,8 +430,8 @@ export function createSeed(): DB {
   ];
 
   const messages: Message[] = [
-    { id: "m1", conversationId: "c-tunde", senderId: "u-adaeze", kind: "text", body: "Good afternoon. My bedroom AC is blowing warm air since Sunday. It's a 1.5HP split, about 3 years old.", createdAt: ago(64), readAt: ago(60) },
-    { id: "m2", conversationId: "c-tunde", senderId: "u-tunde", kind: "text", body: "Good afternoon. Is the outdoor fan spinning when you switch it on? And any ice on the copper pipes?", createdAt: ago(58), readAt: ago(55) },
+    { id: "m1", conversationId: "c-tunde", senderId: "u-adaeze", kind: "text", body: "My bedroom AC is blowing warm air since Sunday. It's a 1.5HP split, about 3 years old.", createdAt: ago(64), readAt: ago(60) },
+    { id: "m2", conversationId: "c-tunde", senderId: "u-tunde", kind: "text", body: "Is the outdoor fan spinning when you switch it on? And any ice on the copper pipes?", createdAt: ago(58), readAt: ago(55) },
     { id: "m3", conversationId: "c-tunde", senderId: "u-adaeze", kind: "text", body: "Fan is spinning. I saw a bit of frost near the valve yesterday morning.", createdAt: ago(52), readAt: ago(50) },
     { id: "m4", conversationId: "c-tunde", senderId: "u-tunde", kind: "text", body: "That sounds like low gas from a slow leak. I can come Thursday morning, find the leak, fix it and refill. Sending a quotation now so you can see the breakdown.", createdAt: ago(20), readAt: ago(19) },
     { id: "m5", conversationId: "c-tunde", senderId: "u-tunde", kind: "quote", body: "Quotation", quoteId: "q-ac-1", createdAt: ago(18) },

@@ -294,7 +294,7 @@ const STEP_MS = 5200;
 export function HowItWorks() {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-120px" });
+  const inView = useInView(ref, { margin: "-64px" });
   const [active, setActive] = useState(0);
   const [hover, setHover] = useState(false);
   const running = !reduce && inView && !hover;
@@ -364,12 +364,9 @@ export function HowItWorks() {
         </ol>
 
         <div
-          className="relative order-1 flex min-h-[22rem] items-center justify-center overflow-hidden rounded-2xl bg-plaster px-6 py-10 sm:min-h-[26rem] lg:order-2"
+          className="relative order-1 flex min-h-88 items-center justify-center overflow-hidden rounded-2xl bg-plaster px-6 py-10 sm:min-h-104 lg:order-2"
           aria-hidden
         >
-          <div
-            className="pointer-events-none absolute inset-0 opacity-60 [background-image:radial-gradient(var(--color-line)_1px,transparent_1px)] [background-size:20px_20px]"
-          />
           <span className="tnum absolute left-6 top-5 text-sm font-semibold text-ink-3">
             Step {active + 1} of {STEPS.length}
           </span>
@@ -631,7 +628,7 @@ export function ProFeed() {
             </span>
             <span className="tnum text-sm text-ink-3">{shown} new</span>
           </div>
-          <ul className="min-h-[18rem]">
+          <ul className="min-h-72">
             <AnimatePresence initial={false}>
               {PRO_FEED.slice(0, shown)
                 .map((n, i) => ({ ...n, i }))

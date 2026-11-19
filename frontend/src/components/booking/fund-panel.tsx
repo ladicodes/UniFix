@@ -88,7 +88,7 @@ export function FundPanel({ b }: { b: BookingBundle }) {
       </p>
 
       <ol className="relative mt-6 before:absolute before:bottom-4 before:left-4 before:top-4 before:w-px before:bg-line-2">
-        <Step n={1} title={w.address ? `Wallet connected: ${shortAddress(w.address)}` : "Connect a Stellar wallet"} done={!!w.address && !w.wrongNetwork} active={!w.address || w.wrongNetwork}>
+        <Step n={1} title={w.address ? `Wallet connected: ${shortAddress(w.address)}` : "Connect a Stellar wallet"} done={Boolean(w.address) && !w.wrongNetwork} active={!w.address || w.wrongNetwork}>
           {!w.address ? (
             <div className="flex flex-wrap gap-2">
               <Button variant="chain" onClick={() => w.connect()} loading={w.status === "connecting"}>
@@ -119,7 +119,7 @@ export function FundPanel({ b }: { b: BookingBundle }) {
           ) : null}
         </Step>
 
-        <Step n={2} title="Check what you are paying" active={!!w.address && !w.wrongNetwork}>
+        <Step n={2} title="Check what you are paying" active={Boolean(w.address) && !w.wrongNetwork}>
           {w.address && !w.wrongNetwork && (
             <div className="overflow-hidden rounded-lg bg-paper">
               <dl className="grid grid-cols-[1fr_auto] gap-y-2 p-4 text-sm">
@@ -149,7 +149,7 @@ export function FundPanel({ b }: { b: BookingBundle }) {
           )}
         </Step>
 
-        <Step n={3} title="Sign and send" active={!!w.address && !w.wrongNetwork}>
+        <Step n={3} title="Sign and send" active={Boolean(w.address) && !w.wrongNetwork}>
           {w.address && !w.wrongNetwork && (
             <div className="space-y-3">
               <label className="flex cursor-pointer items-start gap-3 text-sm">

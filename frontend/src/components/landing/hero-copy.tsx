@@ -18,7 +18,7 @@ export function HeroCopy() {
           Payments held in Stellar escrow
         </span>
 
-        <h1 className="font-wide mt-6 text-5xl font-bold leading-[0.95] tracking-tight sm:text-6xl lg:text-[2.6rem] xl:text-5xl 2xl:text-6xl min-[1800px]:text-7xl">
+        <h1 className="font-wide mt-6 text-5xl font-bold leading-none tracking-tight sm:text-6xl lg:text-5xl xl:text-5xl 2xl:text-6xl min-[1800px]:text-7xl">
           <span className="animate-rise block" style={{ animationDelay: "0.05s" }}>
             Agree on the job.
           </span>
@@ -28,7 +28,7 @@ export function HeroCopy() {
               <span className="relative z-10">done.</span>
               <span
                 aria-hidden
-                className="animate-underline absolute inset-x-0 bottom-[0.08em] h-[0.28em] origin-left rounded-sm bg-danfo"
+                className="animate-underline absolute inset-x-0 bottom-1 h-3 origin-left rounded-sm bg-danfo"
                 style={{ animationDelay: "0.7s" }}
               />
             </span>

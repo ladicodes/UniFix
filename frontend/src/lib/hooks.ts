@@ -26,7 +26,7 @@ export const useProfessionals = (f: ProfessionalFilters) =>
   useQuery({ queryKey: ["professionals", f], queryFn: () => api.listProfessionals(f), placeholderData: (p) => p });
 
 export const useProfessional = (id: string) =>
-  useQuery({ queryKey: ["professional", id], queryFn: () => api.getProfessional(id), enabled: !!id });
+  useQuery({ queryKey: ["professional", id], queryFn: () => api.getProfessional(id), enabled: Boolean(id) });
 
 export const useReviews = (id: string) => useQuery({ queryKey: ["reviews", id], queryFn: () => api.listReviews(id) });
 

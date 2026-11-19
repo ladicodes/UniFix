@@ -15,10 +15,6 @@ export default function Home() {
 
       <main>
         <section className="relative overflow-hidden">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 [background-image:radial-gradient(var(--color-line)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]"
-          />
           <div className={`relative grid items-center gap-12 pb-20 pt-8 md:pt-14 lg:grid-cols-2 lg:gap-10 xl:gap-16 ${pad}`}>
             <HeroCopy />
             <div className="relative">
@@ -27,7 +23,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="how" className={`border-t border-line py-20 lg:py-28 ${pad}`}>
+        <section id="how" className={`scroll-mt-20 border-t border-line py-20 lg:py-28 ${pad}`}>
           <Reveal className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="text-sm font-semibold text-stellar">How it works</p>
@@ -38,7 +34,7 @@ export default function Home() {
           <HowItWorks />
         </section>
 
-        <section className={`border-t border-line py-20 lg:py-28 ${pad}`}>
+        <section id="services" className={`scroll-mt-20 border-t border-line py-20 lg:py-28 ${pad}`}>
           <Reveal className="flex flex-wrap items-end justify-between gap-6">
             <div className="max-w-xl">
               <h2 className="font-semiwide text-3xl font-bold sm:text-4xl">What do you need fixed?</h2>
@@ -58,7 +54,7 @@ export default function Home() {
           <TradeGrid />
         </section>
 
-        <section className="border-t border-line bg-plaster">
+        <section id="safety" className="scroll-mt-20 border-t border-line bg-plaster">
           <div className={`grid items-center gap-12 py-20 lg:grid-cols-2 lg:gap-16 lg:py-28 ${pad}`}>
             <Reveal>
               <p className="text-sm font-semibold text-clay">Disputes</p>
@@ -75,7 +71,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="pros" className={`grid items-center gap-12 border-t border-line py-20 lg:grid-cols-2 lg:gap-16 lg:py-28 ${pad}`}>
+        <section id="pros" className={`scroll-mt-20 grid items-center gap-12 border-t border-line py-20 lg:grid-cols-2 lg:gap-16 lg:py-28 ${pad}`}>
           <Reveal>
             <p className="text-sm font-semibold text-lagoon">For professionals</p>
             <h2 className="font-semiwide mt-2 text-3xl font-bold leading-tight sm:text-4xl">

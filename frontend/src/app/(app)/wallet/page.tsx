@@ -70,7 +70,7 @@ export default function WalletPage() {
           <section className="overflow-hidden rounded-2xl border border-line bg-paper shadow-xs">
             <div className="flex flex-col gap-6 bg-ink p-6 text-white sm:flex-row sm:items-center sm:justify-between sm:p-8">
               <div className="flex items-center gap-4">
-                <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-white/10">
+                <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-ink-2">
                   <Wallet className="size-6" aria-hidden />
                 </span>
                 <div>
@@ -83,7 +83,7 @@ export default function WalletPage() {
                   Connect Freighter
                 </Button>
                 {IS_DEMO && (
-                  <Button variant="outline" onClick={() => w.connectDemo()} className="border-white/30 bg-transparent text-white hover:bg-white/10">
+                  <Button variant="outline" onClick={() => w.connectDemo()} className="border-mist-2 bg-transparent text-white hover:bg-ink-2">
                     Use demo wallet
                   </Button>
                 )}

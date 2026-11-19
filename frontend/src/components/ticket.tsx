@@ -65,7 +65,7 @@ export function AgreementTicket(p: TicketProps) {
 
       <div className="relative h-4">
         <span className={cn("absolute -left-2.5 top-0 size-5 rounded-full", p.notch ?? "bg-paper")} />
-        <span className="perf absolute inset-x-5 top-1/2 h-1 -translate-y-1/2" />
+        <span className="perf absolute inset-x-5 top-1/2 -translate-y-1/2" />
         <span className={cn("absolute -right-2.5 top-0 size-5 rounded-full", p.notch ?? "bg-paper")} />
       </div>
 

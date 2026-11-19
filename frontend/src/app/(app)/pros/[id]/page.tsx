@@ -141,9 +141,7 @@ export default function ProfilePage() {
         </Link>
 
         <section className="overflow-hidden rounded-2xl border border-line bg-paper shadow-xs">
-        <div className="h-24 bg-ink" aria-hidden>
-          <div className="h-full w-full opacity-40 [background:radial-gradient(circle_at_85%_30%,var(--color-stellar),transparent_55%)]" />
-        </div>
+        <div className="h-24 bg-ink" aria-hidden />
         <header className="flex flex-col gap-5 px-6 sm:flex-row sm:items-end lg:px-8">
           <Avatar name={p.name} size={104} className="-mt-12 ring-4 ring-paper" />
           <div className="pb-1">

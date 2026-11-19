@@ -36,9 +36,9 @@ export function HeroDemo() {
 
   return (
     <div className="w-full">
-      <div className="relative mx-auto w-full max-w-[40rem] sm:h-[36rem] 2xl:max-w-[44rem]">
+      <div className="relative mx-auto w-full max-w-160 sm:h-144 2xl:max-w-176">
         {/* Chat window */}
-        <div className="hidden overflow-hidden rounded-2xl border border-line bg-paper shadow-lift sm:absolute sm:left-0 sm:top-6 sm:block sm:w-[70%]">
+        <div className="hidden overflow-hidden rounded-2xl border border-line bg-paper shadow-lift sm:absolute sm:left-0 sm:top-6 sm:block sm:w-7/10">
           <div className="flex items-center gap-3 border-b border-line px-4 py-3">
             <span className="relative">
               <Avatar name="Tunde Bakare" size={36} />
@@ -57,7 +57,7 @@ export function HeroDemo() {
               <p
                 key={m.t}
                 className={cn(
-                  "w-fit max-w-[85%] rounded-2xl px-3 py-2",
+                  "w-fit max-w-4/5 rounded-2xl px-3 py-2",
                   m.me ? "ml-auto rounded-br-md bg-stellar text-white" : "rounded-bl-md border border-line bg-paper",
                 )}
               >
@@ -73,7 +73,7 @@ export function HeroDemo() {
         </div>
 
         {/* Agreement ticket over the chat */}
-        <div className="relative sm:absolute sm:bottom-0 sm:right-0 sm:w-[62%]">
+        <div className="relative sm:absolute sm:bottom-0 sm:right-0 sm:w-3/5">
           <AgreementTicket
             compact
             title="Bedroom 1.5HP split AC: gas refill and leak fix"

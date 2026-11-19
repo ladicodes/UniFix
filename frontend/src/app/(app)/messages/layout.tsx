@@ -28,7 +28,7 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
   return (
     <div className="-mx-4 -my-6 grid h-[calc(100dvh-10.75rem)] grid-rows-[minmax(0,1fr)] overflow-hidden bg-paper sm:-mx-6 sm:-my-8 md:grid-cols-[24rem_minmax(0,1fr)] lg:-mx-10 lg:h-[calc(100dvh-5.75rem)]">
       <aside className={cn("flex min-h-0 flex-col md:border-r md:border-line", inThread && "hidden md:flex")}>
-        <div className="space-y-4 px-5 pb-0 pt-6 md:pt-5">
+        <div className="space-y-4 px-5 pb-4 pt-6 md:pt-5">
           <div className="flex items-baseline justify-between">
             <h1 className="font-semiwide text-2xl font-bold">Messages</h1>
             {unreadCount > 0 && <span className="text-sm font-semibold text-stellar">{unreadCount} unread</span>}
@@ -44,20 +44,27 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
               className="h-11 w-full rounded-xl border border-line bg-plaster pl-10 pr-4 text-base outline-none transition placeholder:text-ink-3 focus-visible:border-stellar focus-visible:bg-paper focus-visible:ring-4 focus-visible:ring-stellar-soft"
             />
           </div>
-          <div className="flex gap-5" role="group" aria-label="Filter conversations">
-            {(["all", "unread"] as const).map((f) => (
-              <button
-                key={f}
-                aria-pressed={filter === f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  "relative pb-3 text-sm font-semibold transition-colors",
-                  filter === f ? "text-ink after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-ink" : "text-ink-3 hover:text-ink",
-                )}
-              >
-                {f === "all" ? "All" : `Unread${unreadCount ? ` (${unreadCount})` : ""}`}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-plaster p-1" role="group" aria-label="Filter conversations">
+            {(["all", "unread"] as const).map((f) => {
+              const on = filter === f;
+              const n = f === "all" ? (data?.length ?? 0) : unreadCount;
+              return (
+                <button
+                  key={f}
+                  aria-pressed={on}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    "flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition",
+                    on ? "bg-paper text-ink shadow-xs" : "text-ink-3 hover:text-ink",
+                  )}
+                >
+                  {f === "all" ? "All" : "Unread"}
+                  <span className={cn("tnum grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-xs", on ? (f === "unread" && n ? "bg-stellar text-white" : "bg-plaster text-ink-2") : "bg-plaster-2 text-ink-3")}>
+                    {n}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
         <ul className="min-h-0 flex-1 overflow-y-auto border-t border-line py-2">

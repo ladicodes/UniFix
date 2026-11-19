@@ -122,7 +122,7 @@ function Discover() {
       </h1>
 
       {/* Search and categories stay under the app header while the list scrolls */}
-      <div className="sticky top-16 z-30 -mx-4 mt-4 border-b border-line bg-plaster/95 px-4 pb-4 pt-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+      <div className="sticky top-16 z-30 -mx-4 mt-4 border-b border-line bg-plaster px-4 pb-4 pt-3 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden />

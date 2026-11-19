@@ -44,7 +44,6 @@ export default function SignInPage() {
 
   return (
     <div className="mx-auto max-w-lg">
-      <p className="animate-rise text-sm font-semibold text-stellar">Welcome back</p>
       <h1 className="font-semiwide animate-rise mt-1 text-3xl font-bold sm:text-4xl" style={{ animationDelay: "0.05s" }}>
         Sign in to UniFix
       </h1>
@@ -87,7 +86,7 @@ export default function SignInPage() {
           )}
         </Field>
         <ErrorNote error={error} />
-        <Button type="submit" size="lg" loading={busy === email && !!email}>
+        <Button type="submit" size="lg" loading={busy === email && email !== ""}>
           Sign in
           <ArrowRight className="size-4" aria-hidden />
         </Button>

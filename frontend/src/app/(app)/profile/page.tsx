@@ -176,9 +176,7 @@ export default function ProfilePage() {
   return (
     <div>
       <header className="overflow-hidden rounded-2xl border border-line bg-paper shadow-xs">
-        <div className="h-28 bg-ink" aria-hidden>
-          <div className="h-full w-full opacity-40 [background:radial-gradient(circle_at_85%_30%,var(--color-stellar),transparent_55%)]" />
-        </div>
+        <div className="h-28 bg-ink" aria-hidden />
         <div className="flex flex-col gap-6 px-6 pb-6 lg:flex-row lg:items-end lg:justify-between lg:px-8">
           <div className="-mt-10 flex items-end gap-5">
             <Avatar name={user.name} size={96} className="ring-4 ring-paper" />

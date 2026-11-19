@@ -82,7 +82,7 @@ export function Badge({ tone = "neutral", className, children }: { tone?: Tone; 
 
 
 /* Quiet tints with no meaning: they only keep people apart at a glance. */
-const TINTS = ["#e8e6fb", "#dcefe8", "#fbe9da", "#dfeaf8", "#f1e3f0"];
+const TINTS = ["var(--tint-1)", "var(--tint-2)", "var(--tint-3)", "var(--tint-4)", "var(--tint-5)"];
 
 export function Avatar({ name, size = 44, className }: { name: string; size?: number; className?: string }) {
   let h = 0;
@@ -433,7 +433,7 @@ export function Dialog({
             exit={{ y: 30, opacity: 0 }}
             transition={{ type: "spring", damping: 30, stiffness: 380 }}
             className={cn(
-              "relative max-h-[92dvh] w-full overflow-y-auto rounded-t-2xl bg-paper p-5 shadow-ticket sm:rounded-2xl sm:p-8",
+              "relative max-h-dvh w-full overflow-y-auto rounded-t-2xl bg-paper p-5 shadow-ticket sm:rounded-2xl sm:p-8",
               wide ? "sm:max-w-2xl" : "sm:max-w-lg",
             )}
           >
@@ -454,32 +454,24 @@ export function Dialog({
 
 /* ---------- Logo ---------- */
 
-/** UniFix mark: the U is an open spanner jaw gripping a hex nut. */
+/**
+ * UniFix mark: the U is an open spanner jaw gripping a hex nut. One colour, so it
+ * reads the same on paper, on ink and at 16px; the nut's bore is cut out.
+ */
 export function LogoMark({ size = 28, className, light }: { size?: number; className?: string; light?: boolean }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={className}>
-      <path
-        d="M4 9 L11.5 6.5 V17 A4.5 4.5 0 0 0 20.5 17 V6.5 L28 9 V17 A12 12 0 0 1 4 17 Z"
-        className={light ? "fill-white stroke-white" : "fill-ink stroke-ink"}
-        strokeWidth="0.6"
-        strokeLinejoin="round"
-      />
-      <path
-        fillRule="evenodd"
-        d="M16 8.93 L19.7 11.07 V15.33 L16 17.47 L12.3 15.33 V11.07 Z M16 11.6 a1.6 1.6 0 1 0 0.001 0 Z"
-        className={light ? "fill-danfo" : "fill-stellar"}
-      />
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={cn(light ? "text-white" : "text-ink", className)}>
+      <path d="M4 9 L11.5 6.5 V17 A4.5 4.5 0 0 0 20.5 17 V6.5 L28 9 V17 A12 12 0 0 1 4 17 Z" fill="currentColor" />
+      <path fillRule="evenodd" d="M16 8.93 L19.7 11.07 V15.33 L16 17.47 L12.3 15.33 V11.07 Z M16 11.6 a1.6 1.6 0 1 0 0.001 0 Z" fill="currentColor" />
     </svg>
   );
 }
 
 export function Logo({ className, light }: { className?: string; light?: boolean }) {
   return (
-    <span className={cn("font-wide inline-flex items-center gap-2 text-2xl font-bold tracking-tight", light ? "text-white" : "text-ink", className)}>
-      <LogoMark className="size-[1.1em]" light={light} />
-      <span>
-        uni<span className={light ? "text-danfo" : "text-stellar"}>fix</span>
-      </span>
+    <span className={cn("font-wide inline-flex items-center gap-2 text-2xl font-bold", light ? "text-white" : "text-ink", className)}>
+      <LogoMark className="size-7" light={light} />
+      unifix
     </span>
   );
 }

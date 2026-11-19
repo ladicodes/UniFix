@@ -63,7 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <header className="sticky top-0 z-40 border-b border-line bg-paper/95 backdrop-blur supports-[backdrop-filter]:bg-paper/85">
+      <header className="sticky top-0 z-40 border-b border-line bg-paper">
         <div className="flex h-16 items-center gap-6 px-4 sm:px-6 lg:px-10">
           <Link href="/" aria-label="UniFix home" className="shrink-0">
             <Logo />
@@ -315,7 +315,7 @@ function NotificationsMenu() {
             className="fixed inset-x-3 top-18 z-50 overflow-hidden rounded-2xl border border-line bg-paper shadow-lift sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-96"
           >
             <p className="border-b border-line px-4 py-3 font-semibold">Notifications</p>
-            <ul className="max-h-[60vh] divide-y divide-line overflow-y-auto">
+            <ul className="max-h-96 divide-y divide-line overflow-y-auto">
               {!data?.length && <li className="px-4 py-6 text-sm text-ink-3">Nothing yet. Updates about your jobs and payments appear here.</li>}
               {data?.map((n) => (
                 <li key={n.id}>
