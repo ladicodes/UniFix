@@ -134,11 +134,7 @@ function Sidebar({ nav }: { nav: NavItem[] }) {
   const { user, signOut, refresh } = useSession();
   const w = useWallet();
   const [switching, setSwitching] = useState(false);
-  const { data: bookings } = useBookings(!!user && user.role !== "admin");
   if (!user) return null;
-  const active = (bookings ?? []).filter((b) => !["COMPLETED", "CANCELLED"].includes(b.booking.status)).length;
-  const heldList = (bookings ?? []).filter((b) => b.escrow && ["FUNDED", "DISPUTED"].includes(b.escrow.state));
-  const held = heldList.reduce((s, b) => s + (b.escrow?.amount ?? 0), 0);
 
   async function switchTo(email: string) {
     const u = await api.signIn(email, "demo");
@@ -150,34 +146,8 @@ function Sidebar({ nav }: { nav: NavItem[] }) {
 
   return (
     <aside className="sticky top-16 hidden h-[calc(100dvh-4rem)] flex-col overflow-y-auto border-r border-line px-4 py-6 lg:flex" aria-label="Account and navigation">
-      <div className="rounded-2xl bg-plaster p-4">
-        <Link href="/profile" className="group flex items-center gap-3">
-          <Avatar name={user.name} size={44} className="ring-2 ring-paper" />
-          <span className="min-w-0">
-            <span className="block truncate font-semibold group-hover:underline">{user.name}</span>
-            <span className="block truncate text-sm text-ink-3">
-              <span className="capitalize">{user.role}</span>, {user.city.split(",")[0]}
-            </span>
-          </span>
-        </Link>
-        {user.role !== "admin" && (
-          <>
-            <p className="mt-4 text-sm text-ink-3">Held in escrow</p>
-            <p className="font-wide tnum text-xl font-bold">
-              {held.toFixed(2)} <span className="text-sm font-semibold text-ink-3">USDC</span>
-            </p>
-            <p className="text-sm text-ink-3">
-              for {heldList.length} of your {active} active job{active === 1 ? "" : "s"}
-            </p>
-            <Link href="/wallet" className="mt-3 flex items-center gap-2 text-sm font-semibold text-ink-2 hover:text-stellar">
-              <span className={cn("size-2 shrink-0 rounded-full", w.address ? (w.wrongNetwork ? "bg-clay" : "bg-lagoon") : "bg-ink-4")} aria-hidden />
-              <span className="truncate">{w.address ? `Wallet ${shortAddress(w.address)}` : "Connect a wallet"}</span>
-            </Link>
-          </>
-        )}
-      </div>
-
-      <nav className="mt-6" aria-label="Main">
+      <nav aria-label="Main">
+        <p className="px-3 pb-2 text-xs font-semibold text-ink-3">Menu</p>
         <ul className="space-y-1">
           {nav.map((n) => {
             const active = pathname.startsWith(n.href);
@@ -210,7 +180,25 @@ function Sidebar({ nav }: { nav: NavItem[] }) {
         </ul>
       </nav>
 
-      <div className="mt-auto space-y-1 border-t border-line pt-4 text-sm">
+      <div className="mt-auto pt-6">
+        <Link href="/profile" className="group flex items-center gap-3 rounded-xl border border-line p-3 transition-colors hover:bg-plaster">
+          <Avatar name={user.name} size={40} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold">{user.name}</span>
+            <span className="block truncate text-sm text-ink-3">
+              <span className="capitalize">{user.role}</span> · {user.city.split(",")[0]}
+            </span>
+          </span>
+        </Link>
+        {user.role !== "admin" && (
+          <Link href="/wallet" className="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-ink-2 hover:bg-plaster">
+            <span className={cn("size-2 shrink-0 rounded-full", w.address ? (w.wrongNetwork ? "bg-clay" : "bg-lagoon") : "bg-ink-4")} aria-hidden />
+            <span className="truncate">{w.address ? `Wallet ${shortAddress(w.address)}` : "No wallet connected"}</span>
+          </Link>
+        )}
+      </div>
+
+      <div className="mt-3 space-y-1 border-t border-line pt-3 text-sm">
         {IS_DEMO && (
           <>
             <button

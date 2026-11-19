@@ -4,13 +4,35 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, BadgeCheck, Bell, Check, Hammer, House, Lock, Star } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  Bell,
+  Car,
+  Check,
+  Droplets,
+  Fuel,
+  Hammer,
+  House,
+  KeyRound,
+  Lock,
+  Mail,
+  MapPin,
+  PaintRoller,
+  ShieldCheck,
+  Snowflake,
+  Sparkles,
+  Star,
+  UserRound,
+  Zap,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import type { SignUpInput } from "@/lib/api";
 import { CATEGORIES, cn } from "@/lib/format";
 import type { CategoryId, Professional } from "@/lib/types";
 import { useSession } from "@/components/providers";
-import { Button, ErrorNote, Field, Input, Select, Textarea } from "@/components/ui";
+import { Button, ChipInput, ErrorNote, Field, Input, Segmented, Textarea } from "@/components/ui";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -33,6 +55,39 @@ const ROLES = [
     perks: ["Get booked by nearby customers", "Paid to your Stellar wallet", "Ratings from paying customers"],
   },
 ];
+
+const TRADE_ICON: Record<CategoryId, typeof Zap> = {
+  electrician: Zap,
+  plumber: Droplets,
+  "ac-technician": Snowflake,
+  mechanic: Car,
+  generator: Fuel,
+  carpenter: Hammer,
+  cleaner: Sparkles,
+  painter: PaintRoller,
+};
+
+function passwordStrength(pw: string) {
+  if (!pw) return { score: 0, label: "Use at least 8 characters.", bar: "bg-line" };
+  let score = 0;
+  if (pw.length >= 8) score++;
+  if (pw.length >= 12) score++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score++;
+  if (/\d/.test(pw) && /[^A-Za-z0-9]/.test(pw)) score++;
+  if (pw.length < 8) return { score: 1, label: `${8 - pw.length} more characters needed.`, bar: "bg-clay" };
+  const labels = ["Weak", "Weak", "Fair", "Good", "Strong"];
+  const bars = ["bg-clay", "bg-clay", "bg-danfo", "bg-lagoon", "bg-lagoon"];
+  return { score, label: `${labels[score]} password.`, bar: bars[score] };
+}
+
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="flex flex-col gap-5 border-t border-line pt-6">
+      <legend className="float-left mb-1 w-full text-base font-semibold">{title}</legend>
+      {children}
+    </fieldset>
+  );
+}
 
 function CustomerPreview() {
   return (
@@ -196,12 +251,14 @@ function SignUpForm() {
     headline: "",
     bio: "",
     area: "",
-    coverage: "",
+    coverage: [] as string[],
     yearsExperience: 3,
     startingPrice: 10000,
     availability: "today" as Professional["availability"],
-    skills: "",
+    skills: [] as string[],
   });
+  const [showPw, setShowPw] = useState(false);
+  const strength = passwordStrength(acct.password);
 
   const country = CITIES.find((c) => c.city === acct.city)!.country;
 
@@ -214,11 +271,7 @@ function SignUpForm() {
       country,
       professional:
         role === "professional"
-          ? {
-              ...pro,
-              coverage: pro.coverage.split(",").map((s) => s.trim()).filter(Boolean),
-              skills: pro.skills.split(",").map((s) => s.trim()).filter(Boolean),
-            }
+          ? pro
           : undefined,
     };
     try {
@@ -268,20 +321,52 @@ function SignUpForm() {
                   else submit();
                 }}
               >
-                <Field label="Full name">{(id) => <Input id={id} required autoComplete="name" value={acct.name} onChange={(e) => setAcct({ ...acct, name: e.target.value })} />}</Field>
-                <Field label="Email">{(id) => <Input id={id} type="email" required autoComplete="email" value={acct.email} onChange={(e) => setAcct({ ...acct, email: e.target.value })} />}</Field>
-                <Field label="Password" hint="At least 8 characters.">
-                  {(id) => <Input id={id} type="password" required minLength={8} autoComplete="new-password" value={acct.password} onChange={(e) => setAcct({ ...acct, password: e.target.value })} />}
+                <Field label="Full name">
+                  {(id) => <Input id={id} icon={UserRound} required autoComplete="name" placeholder="Adaeze Okafor" value={acct.name} onChange={(e) => setAcct({ ...acct, name: e.target.value })} />}
                 </Field>
-                <Field label="City">
+                <Field label="Email">
+                  {(id) => <Input id={id} icon={Mail} type="email" required autoComplete="email" placeholder="you@example.com" value={acct.email} onChange={(e) => setAcct({ ...acct, email: e.target.value })} />}
+                </Field>
+                <Field label="Password">
                   {(id) => (
-                    <Select id={id} value={acct.city} onChange={(e) => setAcct({ ...acct, city: e.target.value })}>
-                      {CITIES.map((c) => (
-                        <option key={c.city}>{c.city}</option>
-                      ))}
-                    </Select>
+                    <div>
+                      <Input
+                        id={id}
+                        icon={KeyRound}
+                        type={showPw ? "text" : "password"}
+                        required
+                        minLength={8}
+                        autoComplete="new-password"
+                        aria-describedby={`${id}-strength`}
+                        value={acct.password}
+                        onChange={(e) => setAcct({ ...acct, password: e.target.value })}
+                        trailing={
+                          <button type="button" onClick={() => setShowPw((x) => !x)} className="rounded-lg px-2 py-1 text-sm font-semibold text-ink-3 hover:bg-plaster hover:text-ink">
+                            {showPw ? "Hide" : "Show"}
+                          </button>
+                        }
+                      />
+                      <div className="mt-2.5 flex gap-1.5" aria-hidden>
+                        {[0, 1, 2, 3].map((i) => (
+                          <span key={i} className={cn("h-1 flex-1 rounded-full transition-colors", i < strength.score ? strength.bar : "bg-line")} />
+                        ))}
+                      </div>
+                      <p id={`${id}-strength`} className="mt-1.5 text-sm text-ink-3">
+                        {strength.label}
+                      </p>
+                    </div>
                   )}
                 </Field>
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold">City</span>
+                  <Segmented
+                    label="City"
+                    value={acct.city}
+                    onChange={(city) => setAcct({ ...acct, city })}
+                    options={CITIES.map((c) => ({ value: c.city, label: c.city, hint: c.country === "NG" ? "Nigeria" : "Ghana" }))}
+                    className="grid-cols-2! sm:grid-cols-4!"
+                  />
+                </div>
                 <ErrorNote error={error} />
                 <Button type="submit" size="lg" loading={busy}>
                   {role === "professional" ? "Continue to profile" : "Create account"}
@@ -294,56 +379,92 @@ function SignUpForm() {
               <h1 className="font-semiwide text-3xl font-bold">Your professional profile</h1>
               <p className="mt-2 text-ink-3">Customers see this when they compare professionals. Verification documents stay private.</p>
               <form
-                className="mt-8 flex flex-col gap-5"
+                className="mt-8 flex flex-col gap-8"
                 onSubmit={(e) => {
                   e.preventDefault();
                   submit();
                 }}
               >
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Service">
-                    {(id) => (
-                      <Select id={id} value={pro.category} onChange={(e) => setPro({ ...pro, category: e.target.value as CategoryId })}>
-                        {CATEGORIES.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </Select>
-                    )}
+                <FormSection title="What you do">
+                  <div role="radiogroup" aria-label="Service" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {CATEGORIES.map((c) => {
+                      const on = pro.category === c.id;
+                      const Icon = TRADE_ICON[c.id];
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          role="radio"
+                          aria-checked={on}
+                          onClick={() => setPro({ ...pro, category: c.id })}
+                          className={cn(
+                            "flex flex-col items-start gap-2 rounded-xl border p-3 text-left text-sm font-semibold transition",
+                            on ? "border-stellar bg-stellar-soft text-stellar-ink ring-1 ring-stellar" : "border-line text-ink-2 hover:border-line-2 hover:text-ink",
+                          )}
+                        >
+                          <Icon className="size-5" aria-hidden />
+                          {c.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <Field label="Headline" hint="One line about what you do best.">
+                    {(id, d) => <Input id={id} aria-describedby={d} required maxLength={90} placeholder="House wiring, inverter and solar backup" value={pro.headline} onChange={(e) => setPro({ ...pro, headline: e.target.value })} />}
                   </Field>
-                  <Field label="Years of experience">
-                    {(id) => <Input id={id} type="number" min={0} max={60} value={pro.yearsExperience} onChange={(e) => setPro({ ...pro, yearsExperience: Number(e.target.value) })} />}
+                  <Field label="About your work" hint={`${pro.bio.length}/600`}>
+                    {(id, d) => <Textarea id={id} aria-describedby={d} required maxLength={600} placeholder="What kind of jobs you take, how you work, what customers can expect." value={pro.bio} onChange={(e) => setPro({ ...pro, bio: e.target.value })} />}
                   </Field>
-                </div>
-                <Field label="Headline" hint="One line about what you do best.">
-                  {(id) => <Input id={id} required maxLength={90} placeholder="House wiring, inverter and solar backup" value={pro.headline} onChange={(e) => setPro({ ...pro, headline: e.target.value })} />}
-                </Field>
-                <Field label="About your work">
-                  {(id) => <Textarea id={id} required maxLength={600} value={pro.bio} onChange={(e) => setPro({ ...pro, bio: e.target.value })} />}
-                </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Base area">{(id) => <Input id={id} required placeholder="Yaba" value={pro.area} onChange={(e) => setPro({ ...pro, area: e.target.value })} />}</Field>
-                  <Field label={`Starting price (${country === "NG" ? "₦" : "GH₵"})`}>
-                    {(id) => <Input id={id} type="number" min={0} value={pro.startingPrice} onChange={(e) => setPro({ ...pro, startingPrice: Number(e.target.value) })} />}
+                  <Field label="Skills" hint="Press Enter after each one.">
+                    {(id, d) => <ChipInput id={id} describedBy={d} value={pro.skills} onChange={(skills) => setPro({ ...pro, skills })} placeholder="Rewiring, fault tracing" />}
                   </Field>
-                </div>
-                <Field label="Areas you cover" hint="Separate with commas.">
-                  {(id) => <Input id={id} placeholder="Yaba, Surulere, Ikoyi" value={pro.coverage} onChange={(e) => setPro({ ...pro, coverage: e.target.value })} />}
-                </Field>
-                <Field label="Skills" hint="Separate with commas.">
-                  {(id) => <Input id={id} placeholder="Rewiring, fault tracing" value={pro.skills} onChange={(e) => setPro({ ...pro, skills: e.target.value })} />}
-                </Field>
-                <Field label="Availability">
-                  {(id) => (
-                    <Select id={id} value={pro.availability} onChange={(e) => setPro({ ...pro, availability: e.target.value as Professional["availability"] })}>
-                      <option value="now">Available now</option>
-                      <option value="today">Available today</option>
-                      <option value="this-week">This week</option>
-                    </Select>
-                  )}
-                </Field>
-                <p className="rounded-lg bg-plaster-2 px-4 py-3 text-sm text-ink-2">
+                </FormSection>
+
+                <FormSection title="Where you work">
+                  <Field label="Base area">
+                    {(id) => <Input id={id} icon={MapPin} required placeholder="Yaba" value={pro.area} onChange={(e) => setPro({ ...pro, area: e.target.value })} />}
+                  </Field>
+                  <Field label="Areas you cover" hint="Press Enter after each one." optional>
+                    {(id, d) => <ChipInput id={id} describedBy={d} value={pro.coverage} onChange={(coverage) => setPro({ ...pro, coverage })} placeholder="Yaba, Surulere, Ikoyi" />}
+                  </Field>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-sm font-semibold">Availability</span>
+                    <Segmented
+                      label="Availability"
+                      value={pro.availability === "unavailable" ? "today" : pro.availability}
+                      onChange={(availability) => setPro({ ...pro, availability })}
+                      options={[
+                        { value: "now", label: "Now" },
+                        { value: "today", label: "Today" },
+                        { value: "this-week", label: "This week" },
+                      ]}
+                    />
+                  </div>
+                </FormSection>
+
+                <FormSection title="Experience and pricing">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Years of experience">
+                      {(id) => <Input id={id} type="number" min={0} max={60} value={pro.yearsExperience} onChange={(e) => setPro({ ...pro, yearsExperience: Number(e.target.value) })} />}
+                    </Field>
+                    <Field label="Starting price" hint="Customers see it as From …">
+                      {(id, d) => (
+                        <Input
+                          id={id}
+                          aria-describedby={d}
+                          type="number"
+                          min={0}
+                          step={500}
+                          value={pro.startingPrice}
+                          onChange={(e) => setPro({ ...pro, startingPrice: Number(e.target.value) })}
+                          trailing={<span className="px-2 text-sm font-semibold text-ink-3">{country === "NG" ? "NGN" : "GHS"}</span>}
+                        />
+                      )}
+                    </Field>
+                  </div>
+                </FormSection>
+
+                <p className="flex gap-3 rounded-xl bg-plaster px-4 py-3 text-sm text-ink-2">
+                  <ShieldCheck className="mt-0.5 size-4 shrink-0 text-lagoon" aria-hidden />
                   After sign-up, upload ID and trade certificates from your profile settings to get the verified badges. Until then your
                   profile shows as unverified.
                 </p>
