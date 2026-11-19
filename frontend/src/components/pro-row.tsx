@@ -63,3 +63,61 @@ export function ProRow({ p }: { p: Professional }) {
     </Link>
   );
 }
+
+/** Grid card for search results: who, how good, how much, how soon. */
+export function ProCard({ p }: { p: Professional }) {
+  const a = AVAILABILITY[p.availability];
+  return (
+    <Link
+      href={`/pros/${p.id}`}
+      className="group flex h-full flex-col rounded-2xl border border-line bg-paper p-5 shadow-xs transition duration-300 hover:-translate-y-0.5 hover:border-line-2 hover:shadow-lift"
+    >
+      <div className="flex items-start gap-4">
+        <Avatar name={p.name} size={56} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <h3 className="truncate text-lg font-semibold group-hover:text-stellar">{p.name}</h3>
+            <VerifiedMark p={p} />
+          </div>
+          <p className="truncate text-sm text-ink-3">
+            {categoryLabel(p.category)} · {p.area}, {p.city}
+          </p>
+          <p className="mt-1.5 flex items-center gap-1 text-sm">
+            {p.reviewCount > 0 ? (
+              <>
+                <Star className="size-4 text-danfo-ink" fill="var(--color-danfo)" strokeWidth={1.5} aria-hidden />
+                <span className="tnum font-semibold">{p.rating.toFixed(1)}</span>
+                <span className="text-ink-3">({p.reviewCount})</span>
+                <span className="text-ink-3">·</span>
+                <span className="tnum text-ink-3">{p.completedJobs} jobs</span>
+              </>
+            ) : (
+              <span className="text-ink-3">New on UniFix</span>
+            )}
+          </p>
+        </div>
+      </div>
+      <p className="mt-4 line-clamp-2 text-ink-2">{p.headline}</p>
+      {p.skills.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-1.5">
+          {p.skills.slice(0, 3).map((s) => (
+            <li key={s} className="rounded-lg bg-plaster px-2 py-1 text-xs font-semibold text-ink-2">
+              {s}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="min-h-5 flex-1" />
+      <div className="flex items-end justify-between gap-3 border-t border-line pt-4">
+        <p className="text-sm text-ink-3">
+          From
+          <span className="font-wide tnum block text-xl font-bold text-ink">{money(p.startingPrice, p.currency)}</span>
+        </p>
+        <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-plaster px-2.5 py-1 text-xs font-semibold", a.cls)}>
+          <span className={cn("size-1.5 rounded-full", p.availability === "now" ? "bg-lagoon" : p.availability === "unavailable" ? "bg-ink-4" : "bg-ink-3")} aria-hidden />
+          {a.label}
+        </span>
+      </div>
+    </Link>
+  );
+}

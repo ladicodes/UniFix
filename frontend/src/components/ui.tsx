@@ -81,12 +81,17 @@ export function Badge({ tone = "neutral", className, children }: { tone?: Tone; 
 /* ---------- Avatar ---------- */
 
 
+/* Quiet tints with no meaning: they only keep people apart at a glance. */
+const TINTS = ["#e8e6fb", "#dcefe8", "#fbe9da", "#dfeaf8", "#f1e3f0"];
+
 export function Avatar({ name, size = 44, className }: { name: string; size?: number; className?: string }) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return (
     <span
       aria-hidden
-      className={cn("inline-grid shrink-0 place-items-center rounded-full bg-plaster-2 font-semibold text-ink-2", className)}
-      style={{ width: size, height: size, fontSize: size * 0.34 }}
+      className={cn("inline-grid shrink-0 place-items-center rounded-full font-semibold text-ink", className)}
+      style={{ width: size, height: size, fontSize: size * 0.34, background: TINTS[h % TINTS.length] }}
     >
       {initials(name)}
     </span>
@@ -310,9 +315,9 @@ export function ChipInput({
 
 /* ---------- Surfaces ---------- */
 
-/** A list or block that sits on the page: horizontal rules only, no frame. */
+/** A list or block on the page: a white card, rows divide inside it. */
 export function Panel({ className, children, as: As = "section" }: { className?: string; children: React.ReactNode; as?: "section" | "div" | "article" | "aside" }) {
-  return <As className={cn("border-y border-line", className)}>{children}</As>;
+  return <As className={cn("rounded-2xl border border-line bg-paper px-5 shadow-xs", className)}>{children}</As>;
 }
 
 /** A framed block on the page with an optional header row. Use to group one topic. */
@@ -344,7 +349,7 @@ export function Card({
 
 /** The one filled surface on a screen: the thing you act on. */
 export function Surface({ className, children, as: As = "section" }: { className?: string; children: React.ReactNode; as?: "section" | "div" | "aside" }) {
-  return <As className={cn("rounded-2xl bg-plaster", className)}>{children}</As>;
+  return <As className={cn("rounded-2xl border border-line bg-paper shadow-xs", className)}>{children}</As>;
 }
 
 export function Skeleton({ className }: { className?: string }) {
@@ -353,7 +358,7 @@ export function Skeleton({ className }: { className?: string }) {
 
 export function Empty({ title, body, action }: { title: string; body: string; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-start gap-3 border-t border-line py-8">
+    <div className="flex flex-col items-start gap-3 rounded-2xl border border-dashed border-line-2/50 bg-paper p-8">
       <p className="text-lg font-semibold">{title}</p>
       <p className="max-w-md text-ink-3">{body}</p>
       {action}

@@ -6,8 +6,8 @@ import { Search, SlidersHorizontal } from "lucide-react";
 import { CATEGORIES, cn } from "@/lib/format";
 import { useProfessionals } from "@/lib/hooks";
 import type { CategoryId, ProfessionalFilters } from "@/lib/types";
-import { ProRow } from "@/components/pro-row";
-import { Button, Dialog, Empty, Input, Panel, Select, Skeleton } from "@/components/ui";
+import { ProCard } from "@/components/pro-row";
+import { Button, Dialog, Empty, Input, Select, Skeleton } from "@/components/ui";
 
 const CITIES = ["all", "Lagos", "Abuja", "Accra", "Kumasi"];
 
@@ -122,7 +122,7 @@ function Discover() {
       </h1>
 
       {/* Search and categories stay under the app header while the list scrolls */}
-      <div className="sticky top-16 z-30 -mx-4 mt-4 border-b border-line bg-paper px-4 pb-4 pt-3 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
+      <div className="sticky top-16 z-30 -mx-4 mt-4 border-b border-line bg-plaster/95 px-4 pb-4 pt-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
@@ -131,7 +131,7 @@ function Discover() {
             placeholder="Search by name, skill or area, like inverter or Lekki"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="h-12 rounded-full bg-plaster pl-10 border-transparent"
+            className="h-12 rounded-full pl-10"
           />
         </div>
         <Button variant="outline" className="h-12 lg:hidden" onClick={() => setSheet(true)} aria-label="Filters">
@@ -158,8 +158,8 @@ function Discover() {
       </div>
       </div>
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[260px_1fr]">
-        <aside className="hidden lg:sticky lg:top-52 lg:block lg:max-h-[calc(100dvh-14rem)] lg:self-start lg:overflow-y-auto" aria-label="Filters">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <aside className="hidden rounded-2xl border border-line bg-paper p-5 shadow-xs lg:sticky lg:top-52 lg:block lg:max-h-[calc(100dvh-14rem)] lg:self-start lg:overflow-y-auto" aria-label="Filters">
           <Filters f={f} set={set} />
         </aside>
 
@@ -180,24 +180,17 @@ function Discover() {
           </div>
 
           {isLoading ? (
-            <Panel className="divide-y divide-line">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="flex gap-4 py-6">
-                  <Skeleton className="size-[52px] rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-4 w-40" />
-                    <Skeleton className="h-3 w-56" />
-                    <Skeleton className="h-3 w-72" />
-                  </div>
-                </div>
+            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-60 rounded-2xl" />
               ))}
-            </Panel>
+            </div>
           ) : data?.length ? (
-            <Panel className={cn("divide-y divide-line transition-opacity", isFetching && "opacity-70")}>
+            <div className={cn("grid gap-4 transition-opacity sm:grid-cols-2 2xl:grid-cols-3", isFetching && "opacity-70")}>
               {data.map((p) => (
-                <ProRow key={p.id} p={p} />
+                <ProCard key={p.id} p={p} />
               ))}
-            </Panel>
+            </div>
           ) : (
             <Empty
               title="No professionals match"

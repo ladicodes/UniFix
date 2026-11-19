@@ -209,7 +209,7 @@ export default function ChatPage() {
             key={r}
             type="button"
             onClick={() => setText(r)}
-            className="shrink-0 rounded-full bg-plaster px-3 py-1 text-sm text-ink-2 transition-colors hover:bg-stellar-soft hover:text-stellar-ink"
+            className="shrink-0 rounded-full border border-line bg-paper px-3 py-1 text-sm text-ink-2 transition-colors hover:bg-stellar-soft hover:text-stellar-ink"
           >
             {r}
           </button>

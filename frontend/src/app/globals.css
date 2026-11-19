@@ -31,6 +31,9 @@
   --color-paper: #ffffff;
   --color-line: #e2e1ec;
   --color-line-2: #8f8db0;
+  /* Text on the dark ink surface: 10.6:1 and 7.5:1 on ink. */
+  --color-mist: #c9c8dc;
+  --color-mist-2: #a9a7c6;
 
   --color-danfo: #f5b400;
   --color-danfo-soft: #fff2c6;

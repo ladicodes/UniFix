@@ -208,7 +208,7 @@ export default function HomePage() {
   const unread = (convos ?? []).filter((c) => c.unread).length;
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-sm text-ink-3">{today || " "}</p>

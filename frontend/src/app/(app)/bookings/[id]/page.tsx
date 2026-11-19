@@ -255,7 +255,7 @@ export default function BookingPage() {
         </div>
 
         {action && (
-          <div className="rounded-2xl bg-plaster p-5 sm:p-8">{action}</div>
+          <div className="rounded-2xl border border-line bg-paper p-5 shadow-xs sm:p-8">{action}</div>
         )}
 
         {b.dispute && (
@@ -276,7 +276,7 @@ export default function BookingPage() {
               <Receipt b={b} />
             </section>
             {isCustomer && (
-              <section className={b.review ? "border-t border-line pt-8" : "rounded-2xl bg-plaster p-5 sm:p-8"}>
+              <section className={b.review ? "border-t border-line pt-8" : "rounded-2xl border border-line bg-paper p-5 shadow-xs sm:p-8"}>
                 {b.review ? <ReviewDone r={b.review} /> : <ReviewForm bookingId={b.booking.id} proName={b.professional.name} />}
               </section>
             )}
