@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, BadgeCheck, Copy, ExternalLink, RefreshCw, Wallet } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Copy, ExternalLink, Lock, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
 import { api, IS_DEMO } from "@/lib/api";
 import { shortAddress } from "@/lib/format";
 import { explorerAccount, fundWithFriendbot, NETWORK, signOwnershipMessage } from "@/lib/stellar";
 import { useSession, useToast, useWallet } from "@/components/providers";
-import { Badge, Button, ErrorNote, Surface } from "@/components/ui";
+import { Badge, Button, ErrorNote } from "@/components/ui";
 
 export default function WalletPage() {
   const w = useWallet();
@@ -48,50 +48,71 @@ export default function WalletPage() {
     }
   }
 
-  return (
-    <div className="w-full">
-      <h1 className="font-semiwide text-3xl font-bold">Wallet</h1>
-      <p className="mt-2 text-ink-2">
-        {user?.role === "professional"
-          ? "Released payments go straight to this Stellar address."
-          : "You pay into escrow from this Stellar wallet. UniFix never sees your secret key."}
-      </p>
+  const STEPS = [
+    { t: "Install Freighter", d: "The Stellar wallet extension for Chrome, Brave and Firefox.", href: "https://www.freighter.app/" },
+    { t: "Switch it to Testnet", d: "Settings → Network → Testnet. Payments in this pilot use test funds." },
+    { t: "Connect here", d: "Approve the connection in Freighter. Nothing moves without your signature." },
+  ];
 
-      {!w.address ? (
-        <Surface className="mt-8 p-6 sm:p-8">
-          <span className="grid size-12 place-items-center rounded-2xl bg-stellar-soft">
-            <Wallet className="size-6 text-stellar" aria-hidden />
-          </span>
-          <h2 className="mt-5 text-xl font-semibold">Connect a Stellar wallet</h2>
-          <p className="mt-2 max-w-prose text-ink-2">
-            UniFix works with Freighter on {NETWORK.label}. You approve every transaction in the wallet and see the asset and amount
-            before signing.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            <Button variant="chain" size="lg" onClick={() => w.connect()} loading={w.status === "connecting"}>
-              Connect Freighter
-            </Button>
-            {IS_DEMO && (
-              <Button variant="outline" size="lg" onClick={() => w.connectDemo()}>
-                Use demo wallet
-              </Button>
+  return (
+    <div>
+      <header>
+        <h1 className="font-semiwide text-3xl font-bold sm:text-4xl">Wallet</h1>
+        <p className="mt-2 text-ink-2">
+          {user?.role === "professional"
+            ? "Released payments go straight to this Stellar address."
+            : "You pay into escrow from this Stellar wallet. UniFix never sees your secret key."}
+        </p>
+      </header>
+
+      <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        {!w.address ? (
+          <section className="overflow-hidden rounded-2xl border border-line bg-paper shadow-xs">
+            <div className="flex flex-col gap-6 bg-ink p-6 text-white sm:flex-row sm:items-center sm:justify-between sm:p-8">
+              <div className="flex items-center gap-4">
+                <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-white/10">
+                  <Wallet className="size-6" aria-hidden />
+                </span>
+                <div>
+                  <h2 className="text-xl font-semibold">Connect a Stellar wallet</h2>
+                  <p className="mt-1 text-sm text-mist">Freighter on {NETWORK.label}. You approve every transaction.</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="accent" onClick={() => w.connect()} loading={w.status === "connecting"}>
+                  Connect Freighter
+                </Button>
+                {IS_DEMO && (
+                  <Button variant="outline" onClick={() => w.connectDemo()} className="border-white/30 bg-transparent text-white hover:bg-white/10">
+                    Use demo wallet
+                  </Button>
+                )}
+              </div>
+            </div>
+            <ol className="grid divide-y divide-line sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              {STEPS.map((x, i) => (
+                <li key={x.t} className="p-6">
+                  <span className="tnum grid size-8 place-items-center rounded-full bg-stellar-soft text-sm font-bold text-stellar-ink">{i + 1}</span>
+                  <p className="mt-4 font-semibold">
+                    {x.href ? (
+                      <a href={x.href} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-stellar">
+                        {x.t} <ExternalLink className="size-3.5" aria-hidden />
+                      </a>
+                    ) : (
+                      x.t
+                    )}
+                  </p>
+                  <p className="mt-1 text-sm leading-relaxed text-ink-3">{x.d}</p>
+                </li>
+              ))}
+            </ol>
+            {(w.freighterAvailable === false || w.error) && (
+              <p className="border-t border-line px-6 py-4 text-sm text-clay-ink">{w.error ?? "Freighter is not installed in this browser yet."}</p>
             )}
-          </div>
-          {w.freighterAvailable === false && (
-            <p className="mt-4 text-sm text-ink-3">
-              Freighter is not installed.{" "}
-              <a className="font-semibold text-stellar hover:underline" href="https://www.freighter.app/" target="_blank" rel="noreferrer">
-                Get Freighter
-              </a>
-              , create an account, and switch the network to Testnet.
-            </p>
-          )}
-          {w.error && <p className="mt-4 text-sm text-clay">{w.error}</p>}
-        </Surface>
-      ) : (
-        <>
-          <section className="mt-8">
-            <div className="pb-8">
+          </section>
+        ) : (
+          <div className="min-w-0 space-y-6">
+            <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs sm:p-8">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={w.source === "demo" ? "neutral" : "stellar"}>{w.source === "demo" ? "Demo wallet" : "Freighter"}</Badge>
                 {w.wrongNetwork ? <Badge tone="clay">Wrong network</Badge> : <Badge tone="lagoon">{NETWORK.label}</Badge>}
@@ -101,8 +122,9 @@ export default function WalletPage() {
                   </Badge>
                 )}
               </div>
-              <p className="tnum mt-4 break-all text-lg font-semibold leading-snug">{w.address}</p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <p className="mt-5 text-sm text-ink-3">Address</p>
+              <p className="tnum mt-1 break-all rounded-xl bg-plaster px-4 py-3 font-mono text-sm font-semibold leading-relaxed">{w.address}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -128,55 +150,79 @@ export default function WalletPage() {
                   Freighter is on another network. Switch to Testnet in Freighter settings and reconnect.
                 </p>
               )}
-            </div>
+            </section>
 
-            <div className="border-t border-line pt-6">
-              <div className="flex items-center justify-between">
+            <section className="rounded-2xl border border-line bg-paper shadow-xs">
+              <div className="flex items-center justify-between border-b border-line px-6 py-4">
                 <h2 className="font-semibold">Balances</h2>
                 <Button variant="ghost" size="sm" onClick={w.reloadBalances} aria-label="Refresh balances">
                   <RefreshCw className="size-4" />
                 </Button>
               </div>
-              {w.balances === null ? (
-                <div className="mt-3">
-                  <p className="text-sm text-ink-2">This account does not exist on testnet yet. Fund it with free test XLM to activate it.</p>
-                  <Button variant="chain" size="sm" className="mt-3" onClick={friendbot} loading={busy === "friendbot"}>
-                    Fund with Friendbot
-                  </Button>
-                </div>
-              ) : w.balances?.length ? (
-                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {w.balances.map((b) => (
-                    <li key={`${b.asset}${b.issuer ?? ""}`}>
-                      <p className="text-sm text-ink-3">{b.asset}</p>
-                      <p className="font-wide tnum text-xl font-bold">{b.balance.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="mt-3 text-sm text-ink-3">Could not load balances from Horizon.</p>
-              )}
-              {w.balances && !w.balances.some((b) => b.asset === "USDC") && (
-                <p className="mt-3 text-sm text-ink-3">Add a USDC trustline in Freighter to receive and pay with testnet USDC.</p>
-              )}
-            </div>
-          </section>
+              <div className="p-6">
+                {w.balances === null ? (
+                  <div>
+                    <p className="text-ink-2">This account does not exist on testnet yet. Fund it with free test XLM to activate it.</p>
+                    <Button variant="chain" size="sm" className="mt-3" onClick={friendbot} loading={busy === "friendbot"}>
+                      Fund with Friendbot
+                    </Button>
+                  </div>
+                ) : w.balances?.length ? (
+                  <ul className="grid gap-3 sm:grid-cols-2">
+                    {w.balances.map((b) => (
+                      <li key={`${b.asset}${b.issuer ?? ""}`} className="rounded-xl border border-line p-4">
+                        <p className="text-sm font-semibold text-ink-3">{b.asset}</p>
+                        <p className="font-wide tnum mt-1 text-2xl font-bold">{b.balance.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-ink-3">Could not load balances from Horizon.</p>
+                )}
+                {w.balances && !w.balances.some((b) => b.asset === "USDC") && (
+                  <p className="mt-4 text-sm text-ink-3">Add a USDC trustline in Freighter to receive and pay with testnet USDC.</p>
+                )}
+              </div>
+            </section>
+          </div>
+        )}
 
-          {!verified && (
-            <Surface className="mt-10 p-6 sm:p-8">
-              <h2 className="text-lg font-semibold">Link this wallet to your UniFix account</h2>
-              <p className="mt-2 text-ink-2">
-                You sign a short message to prove you own the address. It costs nothing and does not move any funds.
+        <aside className="space-y-6">
+          {w.address && !verified && (
+            <section className="rounded-2xl border border-stellar bg-paper p-6 shadow-xs ring-4 ring-stellar-soft">
+              <h2 className="text-lg font-semibold">Link this wallet</h2>
+              <p className="mt-2 text-sm leading-relaxed text-ink-2">
+                Sign a short message to prove you own the address. It costs nothing and does not move any funds.
               </p>
               <ErrorNote error={error} />
-              <Button className="mt-4" onClick={verify} loading={busy === "verify"} disabled={w.wrongNetwork}>
+              <Button className="mt-4 w-full" onClick={verify} loading={busy === "verify"} disabled={w.wrongNetwork}>
                 Sign and link wallet
               </Button>
-            </Surface>
+            </section>
           )}
           {verified && <ErrorNote error={error} />}
-        </>
-      )}
+          <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs">
+            <h2 className="font-semibold">How UniFix uses your wallet</h2>
+            <ul className="mt-4 space-y-4 text-sm">
+              {[
+                { Icon: Lock, t: "You fund escrow", d: "The agreed amount moves into a Soroban contract, not to UniFix or the professional." },
+                { Icon: BadgeCheck, t: "You approve release", d: "The contract pays the professional only after you approve the finished job." },
+                { Icon: ShieldCheck, t: "Your keys stay yours", d: "Freighter signs on your device. UniFix never sees your secret key." },
+              ].map(({ Icon, t, d }) => (
+                <li key={t} className="flex gap-3">
+                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-plaster text-ink-2">
+                    <Icon className="size-4" aria-hidden />
+                  </span>
+                  <span>
+                    <span className="block font-semibold">{t}</span>
+                    <span className="mt-0.5 block leading-relaxed text-ink-3">{d}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </aside>
+      </div>
     </div>
   );
 }
