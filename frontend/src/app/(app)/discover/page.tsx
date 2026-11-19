@@ -76,7 +76,7 @@ function Filters({ f, set }: { f: ProfessionalFilters; set: (p: Partial<Professi
         />
         <span>
           <span className="block text-sm font-semibold">ID and trade verified only</span>
-          <span className="block text-sm text-ink-3">Handi checked their ID and a trade certificate.</span>
+          <span className="block text-sm text-ink-3">UniFix checked their ID and a trade certificate.</span>
         </span>
       </label>
     </div>

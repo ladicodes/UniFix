@@ -29,7 +29,7 @@ export function QuoteForm({
     labour: 0,
     materials: 0,
     completionDate: new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10),
-    paymentTerms: "Full amount held in Handi escrow. Released when the customer approves the finished job.",
+    paymentTerms: "Full amount held in UniFix escrow. Released when the customer approves the finished job.",
   }));
   const [useMilestones, setUseMilestones] = useState(false);
   const [milestones, setMilestones] = useState<Milestone[]>([

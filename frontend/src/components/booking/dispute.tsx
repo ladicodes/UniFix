@@ -23,7 +23,7 @@ export function DisputeDialog({ open, onClose, escrowId }: { open: boolean; onCl
     setError(null);
     try {
       await api.openDispute(escrowId, { reason, details });
-      toast({ title: "Dispute opened", body: "The funds are locked until Handi resolves it.", tone: "info" });
+      toast({ title: "Dispute opened", body: "The funds are locked until UniFix resolves it.", tone: "info" });
       onClose();
     } catch (err) {
       setError(err);
@@ -36,7 +36,7 @@ export function DisputeDialog({ open, onClose, escrowId }: { open: boolean; onCl
     <Dialog open={open} onClose={onClose} title="Raise a dispute">
       <form onSubmit={submit} className="flex flex-col gap-4">
         <p className="text-ink-2">
-          The escrow contract locks the payment. Nobody can release or refund it until a Handi resolver reviews the agreement, chat and
+          The escrow contract locks the payment. Nobody can release or refund it until a UniFix resolver reviews the agreement, chat and
           evidence. Most disputes are settled within 48 hours.
         </p>
         <Field label="Reason">

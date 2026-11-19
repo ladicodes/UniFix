@@ -296,14 +296,32 @@ export function Dialog({
 
 /* ---------- Logo ---------- */
 
+/** UniFix mark: the U is an open spanner jaw gripping a hex nut. */
+export function LogoMark({ size = 28, className, light }: { size?: number; className?: string; light?: boolean }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={className}>
+      <path
+        d="M4 9 L11.5 6.5 V17 A4.5 4.5 0 0 0 20.5 17 V6.5 L28 9 V17 A12 12 0 0 1 4 17 Z"
+        className={light ? "fill-white stroke-white" : "fill-ink stroke-ink"}
+        strokeWidth="0.6"
+        strokeLinejoin="round"
+      />
+      <path
+        fillRule="evenodd"
+        d="M16 8.93 L19.7 11.07 V15.33 L16 17.47 L12.3 15.33 V11.07 Z M16 11.6 a1.6 1.6 0 1 0 0.001 0 Z"
+        className={light ? "fill-danfo" : "fill-stellar"}
+      />
+    </svg>
+  );
+}
+
 export function Logo({ className, light }: { className?: string; light?: boolean }) {
   return (
     <span className={cn("font-wide inline-flex items-center gap-2 text-2xl font-bold tracking-tight", light ? "text-white" : "text-ink", className)}>
-      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden>
-        <rect width="26" height="26" rx="7" className="fill-danfo" />
-        <path d="M7 6.5v13M19 6.5v13M7 13h12" className="stroke-ink" strokeWidth="3" strokeLinecap="round" />
-      </svg>
-      handi
+      <LogoMark className="size-[1.1em]" light={light} />
+      <span>
+        uni<span className={light ? "text-danfo" : "text-stellar"}>fix</span>
+      </span>
     </span>
   );
 }

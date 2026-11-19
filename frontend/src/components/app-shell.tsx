@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <header className="sticky top-0 z-40 border-b border-line bg-paper">
         <div className="flex h-16 items-center gap-4 px-4 sm:px-6 lg:pl-6 lg:pr-10">
-          <Link href="/" aria-label="Handi home" className={cn(user && "lg:w-56")}>
+          <Link href="/" aria-label="UniFix home" className={cn(user && "lg:w-56")}>
             <Logo />
           </Link>
           {!user && (

@@ -27,7 +27,7 @@ export interface DB {
   notifications: AppNotification[];
 }
 
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 
 const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
 const ahead = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
@@ -35,7 +35,7 @@ const ahead = (days: number) => new Date(Date.now() + days * 86_400_000).toISOSt
 export const hex = (len = 64) =>
   Array.from({ length: len }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 
-const DEMO_CONTRACT = "CDHANDIESCROWTESTNETDEMO7QX4M2KJ5ZP6V3WRB2N8LYTFA4HGSU";
+const DEMO_CONTRACT = "CDUNIFIXESCRWTESTNETDEMO7QX4M2KJ5ZP6V3WRB2N8LYTFA4HGSU";
 
 const rb = (q: number, p: number, c: number, pr: number, v: number): RatingBreakdown => ({
   quality: q,
@@ -47,12 +47,12 @@ const rb = (q: number, p: number, c: number, pr: number, v: number): RatingBreak
 
 export function createSeed(): DB {
   const users: User[] = [
-    { id: "u-adaeze", name: "Adaeze Okafor", email: "adaeze@demo.handi", role: "customer", city: "Lekki, Lagos", country: "NG" },
-    { id: "u-kofi", name: "Kofi Asante", email: "kofi@demo.handi", role: "customer", city: "East Legon, Accra", country: "GH" },
-    { id: "u-funmi", name: "Funmilayo Adeyemi", email: "funmi@demo.handi", role: "customer", city: "Ikeja, Lagos", country: "NG" },
-    { id: "u-tunde", name: "Tunde Bakare", email: "tunde@demo.handi", role: "professional", city: "Yaba, Lagos", country: "NG", professionalId: "p-tunde" },
-    { id: "u-chioma", name: "Chioma Eze", email: "chioma@demo.handi", role: "professional", city: "Surulere, Lagos", country: "NG", professionalId: "p-chioma" },
-    { id: "u-ops", name: "Handi Operations", email: "ops@demo.handi", role: "admin", city: "Lagos", country: "NG" },
+    { id: "u-adaeze", name: "Adaeze Okafor", email: "adaeze@demo.unifix", role: "customer", city: "Lekki, Lagos", country: "NG" },
+    { id: "u-kofi", name: "Kofi Asante", email: "kofi@demo.unifix", role: "customer", city: "East Legon, Accra", country: "GH" },
+    { id: "u-funmi", name: "Funmilayo Adeyemi", email: "funmi@demo.unifix", role: "customer", city: "Ikeja, Lagos", country: "NG" },
+    { id: "u-tunde", name: "Tunde Bakare", email: "tunde@demo.unifix", role: "professional", city: "Yaba, Lagos", country: "NG", professionalId: "p-tunde" },
+    { id: "u-chioma", name: "Chioma Eze", email: "chioma@demo.unifix", role: "professional", city: "Surulere, Lagos", country: "NG", professionalId: "p-chioma" },
+    { id: "u-ops", name: "UniFix Operations", email: "ops@demo.unifix", role: "admin", city: "Lagos", country: "NG" },
   ];
 
   const pro = (p: Omit<Professional, "userId" | "rating"> & { userId?: string }): Professional => ({
@@ -354,7 +354,7 @@ export function createSeed(): DB {
       total: quoteTotal,
       currency: "NGN",
       completionDate: ahead(2),
-      paymentTerms: "Full amount held in Handi escrow. Released when you approve the finished job.",
+      paymentTerms: "Full amount held in UniFix escrow. Released when you approve the finished job.",
       milestones: [],
       createdAt: ago(18),
     },
@@ -372,7 +372,7 @@ export function createSeed(): DB {
       total: 36000,
       currency: "NGN",
       completionDate: ahead(1),
-      paymentTerms: "Full amount held in Handi escrow. Released on approval.",
+      paymentTerms: "Full amount held in UniFix escrow. Released on approval.",
       milestones: [],
       createdAt: ago(60 * 26),
       acceptedAt: ago(60 * 25),
@@ -392,7 +392,7 @@ export function createSeed(): DB {
       total: 1650,
       currency: "GHS",
       completionDate: ago(60 * 24 * 2),
-      paymentTerms: "Full amount held in Handi escrow.",
+      paymentTerms: "Full amount held in UniFix escrow.",
       milestones: [],
       createdAt: ago(60 * 24 * 6),
       acceptedAt: ago(60 * 24 * 6 - 30),
@@ -564,7 +564,7 @@ export function createSeed(): DB {
   ];
 
   // Ama has a user record for chat attribution
-  users.push({ id: "u-ama", name: "Ama Owusu", email: "ama@demo.handi", role: "professional", city: "Osu, Accra", country: "GH", professionalId: "p-ama" });
+  users.push({ id: "u-ama", name: "Ama Owusu", email: "ama@demo.unifix", role: "professional", city: "Osu, Accra", country: "GH", professionalId: "p-ama" });
 
   addMoreSeed({ users, professionals, reviews, conversations, messages, quotes, bookings, escrows, notifications });
 
@@ -610,10 +610,10 @@ function addMoreSeed(d: SeedParts) {
   );
 
   d.users.push(
-    { id: "u-bola", name: "Bola Ogunleye", email: "bola@demo.handi", role: "professional", city: "Ajah, Lagos", country: "NG", professionalId: "p-bola" },
-    { id: "u-grace", name: "Grace Nwankwo", email: "grace@demo.handi", role: "professional", city: "Lekki, Lagos", country: "NG", professionalId: "p-grace" },
-    { id: "u-segun", name: "Segun Ajayi", email: "segun@demo.handi", role: "professional", city: "Ikeja, Lagos", country: "NG", professionalId: "p-segun" },
-    { id: "u-emeka", name: "Emeka Obi", email: "emeka@demo.handi", role: "customer", city: "Ikoyi, Lagos", country: "NG" },
+    { id: "u-bola", name: "Bola Ogunleye", email: "bola@demo.unifix", role: "professional", city: "Ajah, Lagos", country: "NG", professionalId: "p-bola" },
+    { id: "u-grace", name: "Grace Nwankwo", email: "grace@demo.unifix", role: "professional", city: "Lekki, Lagos", country: "NG", professionalId: "p-grace" },
+    { id: "u-segun", name: "Segun Ajayi", email: "segun@demo.unifix", role: "professional", city: "Ikeja, Lagos", country: "NG", professionalId: "p-segun" },
+    { id: "u-emeka", name: "Emeka Obi", email: "emeka@demo.unifix", role: "customer", city: "Ikoyi, Lagos", country: "NG" },
   );
   const seg = d.professionals.find((p) => p.id === "p-segun");
   if (seg) seg.userId = "u-segun";
@@ -637,7 +637,7 @@ function addMoreSeed(d: SeedParts) {
     const pro = d.professionals.find((p) => p.id === o.pid)!;
     const total = o.labour + o.materials;
     const t0 = 60 * 24 * o.daysAgo;
-    d.quotes.push({ id: `q-${o.id}`, conversationId: `c-${o.id}`, professionalId: o.pid, customerId: o.customerId, version: 1, status: "ACCEPTED", title: o.title, description: o.description, labour: o.labour, materials: o.materials, total, currency: o.currency, completionDate: ago(t0 - 60 * 24 * 2), paymentTerms: "Full amount held in Handi escrow. Released on approval.", milestones: [], createdAt: ago(t0 + 60), acceptedAt: ago(t0), agreementHash: hex() });
+    d.quotes.push({ id: `q-${o.id}`, conversationId: `c-${o.id}`, professionalId: o.pid, customerId: o.customerId, version: 1, status: "ACCEPTED", title: o.title, description: o.description, labour: o.labour, materials: o.materials, total, currency: o.currency, completionDate: ago(t0 - 60 * 24 * 2), paymentTerms: "Full amount held in UniFix escrow. Released on approval.", milestones: [], createdAt: ago(t0 + 60), acceptedAt: ago(t0), agreementHash: hex() });
     d.conversations.push({ id: `c-${o.id}`, customerId: o.customerId, professionalId: o.pid, bookingId: `b-${o.id}`, lastMessageAt: ago(Math.max(5, t0 - 60 * 24 * o.daysAgo * 0.7)), lastMessagePreview: o.lastLine, unreadFor: [] });
     d.messages.push(
       { id: `m-${o.id}-1`, conversationId: `c-${o.id}`, senderId: o.customerId, kind: "text", body: `Hello, I need help with this: ${o.title.toLowerCase()}.`, createdAt: ago(t0 + 120), readAt: ago(t0 + 110) },
@@ -653,9 +653,9 @@ function addMoreSeed(d: SeedParts) {
       const amount = toUsdc(total, o.currency);
       const released = o.status === "COMPLETED";
       d.escrows.push({
-        id: escrowId, bookingId: `b-${o.id}`, contractId: "CDHANDIESCROWTESTNETDEMO7QX4M2KJ5ZP6V3WRB2N8LYTFA4HGSU",
+        id: escrowId, bookingId: `b-${o.id}`, contractId: "CDUNIFIXESCRWTESTNETDEMO7QX4M2KJ5ZP6V3WRB2N8LYTFA4HGSU",
         state: released ? "RELEASED" : "FUNDED", asset: "USDC", amount, localAmount: total, currency: o.currency, rate: RATES[o.currency], networkFee: 0.00421,
-        customerWallet: "GBHANDIDEMOCUSTOMERWALLETQ7XKJ5ZP6V3WRB2N8LYTFA4HGSUQM", professionalWallet: `GC${o.pid.replace("p-", "").toUpperCase()}DEMOWALLETTESTNET7QKX7M2JZP5VRB2N8LYTFA4HGSUXQ`.slice(0, 56),
+        customerWallet: "GBUNIFXDEMOCUSTOMERWALLETQ7XKJ5ZP6V3WRB2N8LYTFA4HGSUQM", professionalWallet: `GC${o.pid.replace("p-", "").toUpperCase()}DEMOWALLETTESTNET7QKX7M2JZP5VRB2N8LYTFA4HGSUXQ`.slice(0, 56),
         reconciliation: "CONFIRMED",
         transactions: [
           { kind: "FUND", hash: hex(), ledger: 1_170_000 + o.daysAgo * 100, at: ago(t0 - 30), status: "CONFIRMED", simulated: true },

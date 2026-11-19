@@ -37,7 +37,7 @@ export default function SignInPage() {
     <div>
       <h1 className="font-semiwide text-3xl font-bold">Sign in</h1>
       <p className="mt-2 text-ink-3">
-        New to Handi?{" "}
+        New to UniFix?{" "}
         <Link href="/sign-up" className="font-semibold text-stellar hover:underline">
           Create an account
         </Link>

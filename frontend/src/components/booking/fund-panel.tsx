@@ -72,7 +72,7 @@ export function FundPanel({ b }: { b: BookingBundle }) {
         <div>
           <p className="text-lg font-semibold">Confirming your payment on Stellar</p>
           <p className="mt-1 text-ink-2">
-            Handi checks the escrow contract directly. The booking moves to funded only after the ledger confirms it, usually within
+            UniFix checks the escrow contract directly. The booking moves to funded only after the ledger confirms it, usually within
             10 seconds. You can leave this page.
           </p>
         </div>
@@ -129,7 +129,7 @@ export function FundPanel({ b }: { b: BookingBundle }) {
                 <dd className="tnum text-right">{money(RATES[b.quote.currency], b.quote.currency)} per USDC</dd>
                 <dt className="text-ink-3">Network fee</dt>
                 <dd className="tnum text-right">about {NETWORK_FEE_XLM} XLM</dd>
-                <dt className="text-ink-3">Handi fee</dt>
+                <dt className="text-ink-3">UniFix fee</dt>
                 <dd className="tnum text-right">None during the pilot</dd>
                 <dt className="mt-1 border-t border-line pt-3 font-semibold">You send to escrow</dt>
                 <dd className="font-wide tnum mt-1 border-t border-line pt-3 text-right text-xl font-bold">{usdc(amountUsdc)}</dd>

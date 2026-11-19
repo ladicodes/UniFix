@@ -19,10 +19,10 @@ import type {
   TimelineEvent,
   User,
 } from "../types";
-import type { ChangeListener, ConversationSummary, HandiApi } from "./contract";
+import type { ChangeListener, ConversationSummary, UniFixApi } from "./contract";
 
-const KEY = "handi-demo-db";
-const SESSION_KEY = "handi-session";
+const KEY = "unifix-demo-db";
+const SESSION_KEY = "unifix-session";
 const CONFIRM_MS = 3200;
 
 let db: DB | null = null;
@@ -252,7 +252,7 @@ export function isTyping(conversationId: string) {
   return (typingUntil.get(conversationId) ?? 0) > Date.now();
 }
 
-export const demoApi: HandiApi = {
+export const demoApi: UniFixApi = {
   mode: "demo",
 
   async signIn(email) {
@@ -578,7 +578,7 @@ export const demoApi: HandiApi = {
       e = {
         id: id("e"),
         bookingId: b.id,
-        contractId: "CDHANDIESCROWTESTNETDEMO7QX4M2KJ5ZP6V3WRB2N8LYTFA4HGSU",
+        contractId: "CDUNIFIXESCRWTESTNETDEMO7QX4M2KJ5ZP6V3WRB2N8LYTFA4HGSU",
         state: "CREATED",
         asset: "USDC",
         amount: toUsdc(q.total, q.currency),
@@ -687,7 +687,7 @@ export const demoApi: HandiApi = {
     b.status = "DISPUTED";
     b.disputeId = dispute.id;
     addTimeline(b, "Dispute opened, funds locked", u.id === b.customerId ? "customer" : "professional");
-    systemMessage(b.conversationId, "Dispute opened. Funds stay locked until Handi resolves it.");
+    systemMessage(b.conversationId, "Dispute opened. Funds stay locked until UniFix resolves it.");
     const other = u.id === b.customerId ? proUserId(b.professionalId) : b.customerId;
     notify(other, "A dispute was opened", b.title, `/bookings/${b.id}`);
     d.users.filter((x) => x.role === "admin").forEach((a) => notify(a.id, "Dispute needs review", b.title, "/admin"));
@@ -788,7 +788,7 @@ export const demoApi: HandiApi = {
 
   async walletChallenge(address) {
     await wait(150);
-    return { message: `Handi wallet ownership check\nAddress: ${address}\nNonce: ${hex(16)}\nIssued: ${now()}` };
+    return { message: `UniFix wallet ownership check\nAddress: ${address}\nNonce: ${hex(16)}\nIssued: ${now()}` };
   },
 
   async registerWallet(address, _message, signature) {
@@ -813,10 +813,10 @@ export const demoApi: HandiApi = {
 };
 
 export const DEMO_ACCOUNTS = [
-  { email: "adaeze@demo.handi", name: "Adaeze Okafor", role: "Customer in Lekki, Lagos" },
-  { email: "tunde@demo.handi", name: "Tunde Bakare", role: "AC technician in Yaba" },
-  { email: "kofi@demo.handi", name: "Kofi Asante", role: "Customer in East Legon, Accra" },
-  { email: "ops@demo.handi", name: "Handi Operations", role: "Admin and dispute resolver" },
+  { email: "adaeze@demo.unifix", name: "Adaeze Okafor", role: "Customer in Lekki, Lagos" },
+  { email: "tunde@demo.unifix", name: "Tunde Bakare", role: "AC technician in Yaba" },
+  { email: "kofi@demo.unifix", name: "Kofi Asante", role: "Customer in East Legon, Accra" },
+  { email: "ops@demo.unifix", name: "UniFix Operations", role: "Admin and dispute resolver" },
 ];
 
 export { ApiError };

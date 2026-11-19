@@ -54,7 +54,7 @@ export default function WalletPage() {
       <p className="mt-2 text-ink-2">
         {user?.role === "professional"
           ? "Released payments go straight to this Stellar address."
-          : "You pay into escrow from this Stellar wallet. Handi never sees your secret key."}
+          : "You pay into escrow from this Stellar wallet. UniFix never sees your secret key."}
       </p>
 
       {!w.address ? (
@@ -64,7 +64,7 @@ export default function WalletPage() {
           </span>
           <h2 className="mt-5 text-xl font-semibold">Connect a Stellar wallet</h2>
           <p className="mt-2 max-w-prose text-ink-2">
-            Handi works with Freighter on {NETWORK.label}. You approve every transaction in the wallet and see the asset and amount
+            UniFix works with Freighter on {NETWORK.label}. You approve every transaction in the wallet and see the asset and amount
             before signing.
           </p>
           <div className="mt-6 flex flex-wrap gap-2">
@@ -164,7 +164,7 @@ export default function WalletPage() {
 
           {!verified && (
             <Surface className="mt-10 p-6 sm:p-8">
-              <h2 className="text-lg font-semibold">Link this wallet to your Handi account</h2>
+              <h2 className="text-lg font-semibold">Link this wallet to your UniFix account</h2>
               <p className="mt-2 text-ink-2">
                 You sign a short message to prove you own the address. It costs nothing and does not move any funds.
               </p>

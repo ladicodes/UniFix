@@ -1,4 +1,4 @@
-# Handi frontend
+# UniFix frontend
 
 Next.js 16 (App Router), TypeScript, Tailwind CSS v4, TanStack Query, Motion, Freighter wallet API.
 
@@ -25,7 +25,7 @@ NEXT_PUBLIC_HORIZON_URL=https://horizon-testnet.stellar.org
 2. On the booking, connect Freighter (or the demo wallet) and fund the escrow. The booking turns funded once confirmation lands.
 3. Switch to **Tunde** (professional). Start the job, then submit photos, checklist and notes.
 4. Switch back to Adaeze. Approve and release. The receipt appears, then leave a verified review.
-5. Sign in as **Handi Operations** to resolve the seeded dispute in `/admin`.
+5. Sign in as **UniFix Operations** to resolve the seeded dispute in `/admin`.
 
 ## Routes
 

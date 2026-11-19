@@ -8,7 +8,7 @@ export function LandingNav() {
   const { user } = useSession();
   return (
     <header className="flex w-full items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-10">
-      <Link href="/" aria-label="Handi home">
+      <Link href="/" aria-label="UniFix home">
         <Logo />
       </Link>
       <nav className="flex items-center gap-1 text-base font-semibold sm:gap-2">
@@ -20,7 +20,7 @@ export function LandingNav() {
         </a>
         {user ? (
           <Link href={user.role === "admin" ? "/admin" : "/home"} className="rounded-lg bg-stellar px-4 py-3 text-white hover:bg-stellar-ink">
-            Open Handi
+            Open UniFix
           </Link>
         ) : (
           <>

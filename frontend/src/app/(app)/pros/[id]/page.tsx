@@ -76,7 +76,7 @@ function ReviewItem({ r, proName }: { r: Review; proName: string }) {
       <p className="mt-3 max-w-prose leading-relaxed">{r.comment}</p>
       <p className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-lagoon">
         <ShieldCheck className="size-3.5" aria-hidden />
-        Linked to a paid Handi booking
+        Linked to a paid UniFix booking
       </p>
       {r.response && (
         <div className="mt-4 border-l-2 border-line-2 pl-4">

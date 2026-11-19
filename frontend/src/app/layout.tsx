@@ -11,7 +11,7 @@ const archivo = Archivo({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Handi: hire professionals, pay when the job is done", template: "%s | Handi" },
+  title: { default: "UniFix: hire professionals, pay when the job is done", template: "%s | UniFix" },
   description:
     "Hire electricians, plumbers, AC technicians and mechanics in Nigeria and Ghana. Agree on a quotation, hold the payment in Stellar escrow, and release it when the job is done.",
 };

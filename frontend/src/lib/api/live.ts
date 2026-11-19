@@ -1,14 +1,14 @@
 "use client";
 
-// Live client for the Handi FastAPI backend. Routes follow PRD section 10.
+// Live client for the UniFix FastAPI backend. Routes follow PRD section 10.
 // The backend owns business rules and reconciliation: this client never
 // treats a wallet signature as proof of settlement. It always re-reads
 // escrow state from the API, which reads confirmed state from Stellar.
 
-import type { HandiApi } from "./contract";
+import type { UniFixApi } from "./contract";
 
 const BASE = (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\/$/, "");
-const TOKEN_KEY = "handi-token";
+const TOKEN_KEY = "unifix-token";
 
 export class LiveApiError extends Error {
   constructor(
@@ -58,11 +58,11 @@ async function req<T>(path: string, init: RequestInit & { json?: unknown; idempo
 
 const post = <T,>(path: string, json?: unknown) => req<T>(path, { method: "POST", json: json ?? {}, idempotent: true });
 
-export const liveApi: HandiApi = {
+export const liveApi: UniFixApi = {
   mode: "live",
 
   async signIn(email, password) {
-    const r = await req<{ access_token: string; user: Awaited<ReturnType<HandiApi["me"]>> }>("/auth/login", {
+    const r = await req<{ access_token: string; user: Awaited<ReturnType<UniFixApi["me"]>> }>("/auth/login", {
       method: "POST",
       json: { email, password },
     });
@@ -70,7 +70,7 @@ export const liveApi: HandiApi = {
     return r.user!;
   },
   async signUp(input) {
-    const r = await req<{ access_token: string; user: Awaited<ReturnType<HandiApi["me"]>> }>("/auth/register", {
+    const r = await req<{ access_token: string; user: Awaited<ReturnType<UniFixApi["me"]>> }>("/auth/register", {
       method: "POST",
       json: input,
     });

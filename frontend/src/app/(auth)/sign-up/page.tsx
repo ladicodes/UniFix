@@ -3,13 +3,120 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { Check, Hammer, House } from "lucide-react";
+import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { ArrowLeft, ArrowRight, Check, Hammer, House } from "lucide-react";
 import { api } from "@/lib/api";
 import type { SignUpInput } from "@/lib/api";
-import { CATEGORIES, cn } from "@/lib/format";
+import { CATEGORIES } from "@/lib/format";
 import type { CategoryId, Professional } from "@/lib/types";
 import { useSession } from "@/components/providers";
 import { Button, ErrorNote, Field, Input, Select, Textarea } from "@/components/ui";
+
+const EASE = [0.22, 1, 0.36, 1] as const;
+
+type Role = "customer" | "professional";
+type Step = "role" | "account" | "profile";
+
+const ROLES = [
+  {
+    v: "customer" as const,
+    Icon: House,
+    t: "I need something fixed",
+    d: "Hire a verified professional and pay only when the job is done.",
+    perks: ["Compare verified ratings", "Locked quotations", "Payment held in escrow"],
+  },
+  {
+    v: "professional" as const,
+    Icon: Hammer,
+    t: "I fix things",
+    d: "Offer your services and start every job with the money already held.",
+    perks: ["Get booked by nearby customers", "Paid to your Stellar wallet", "Ratings from paying customers"],
+  },
+];
+
+function RolePicker({ onPick }: { onPick: (r: Role) => void }) {
+  return (
+    <div>
+      <h1 className="font-semiwide text-3xl font-bold sm:text-4xl">Join UniFix</h1>
+      <p className="mt-2 text-ink-3">
+        How will you use UniFix? You can&apos;t switch later, so pick the one that fits.{" "}
+        <Link href="/sign-in" className="font-semibold text-stellar hover:underline">
+          Sign in instead
+        </Link>
+      </p>
+      <motion.ul
+        className="mt-8 grid gap-4"
+        initial="hidden"
+        animate="show"
+        variants={{ show: { transition: { staggerChildren: 0.1, delayChildren: 0.1 } } }}
+      >
+        {ROLES.map(({ v, Icon, t, d, perks }) => (
+          <motion.li key={v} variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } }}>
+            <button
+              type="button"
+              onClick={() => onPick(v)}
+              className="group relative flex w-full gap-5 overflow-hidden rounded-2xl border-2 border-line bg-paper p-6 text-left transition duration-300 hover:-translate-y-0.5 hover:border-stellar hover:shadow-lift focus-visible:border-stellar"
+            >
+              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-plaster text-ink transition-colors duration-300 group-hover:bg-stellar group-hover:text-white">
+                <Icon className="size-6" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-xl font-semibold">{t}</span>
+                  <ArrowRight className="size-5 shrink-0 text-ink-4 transition duration-300 group-hover:translate-x-1 group-hover:text-stellar" aria-hidden />
+                </span>
+                <span className="mt-1 block text-ink-2">{d}</span>
+                <span className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
+                  {perks.map((p) => (
+                    <span key={p} className="flex items-center gap-1.5 text-sm text-ink-3">
+                      <Check className="size-3.5 text-lagoon" aria-hidden />
+                      {p}
+                    </span>
+                  ))}
+                </span>
+              </span>
+            </button>
+          </motion.li>
+        ))}
+      </motion.ul>
+    </div>
+  );
+}
+
+function StepHeader({ role, step, onBack }: { role: Role; step: Step; onBack: () => void }) {
+  const total = role === "professional" ? 3 : 2;
+  const n = step === "account" ? 2 : 3;
+  const r = ROLES.find((x) => x.v === role)!;
+  return (
+    <div className="mb-8">
+      <div className="flex items-center justify-between gap-4">
+        <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-sm font-semibold text-ink-3 hover:text-ink">
+          <ArrowLeft className="size-4" aria-hidden />
+          Back
+        </button>
+        <span className="tnum text-sm text-ink-3">
+          Step {n} of {total}
+        </span>
+      </div>
+      <div className="mt-3 flex gap-1.5" aria-hidden>
+        {Array.from({ length: total }, (_, i) => (
+          <span key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-line">
+            <motion.span
+              className="block h-full origin-left rounded-full bg-stellar"
+              initial={false}
+              animate={{ scaleX: i < n ? 1 : 0 }}
+              transition={{ duration: 0.5, ease: EASE }}
+            />
+          </span>
+        ))}
+      </div>
+      <span className="mt-6 inline-flex items-center gap-2 rounded-full bg-stellar-soft px-3 py-1 text-sm font-semibold text-stellar-ink">
+        <r.Icon className="size-4" aria-hidden />
+        {r.t}
+      </span>
+    </div>
+  );
+}
 
 const CITIES = [
   { city: "Lagos", country: "NG" as const },
@@ -22,8 +129,9 @@ function SignUpForm() {
   const params = useSearchParams();
   const router = useRouter();
   const { refresh } = useSession();
-  const [role, setRole] = useState<"customer" | "professional">(params.get("role") === "professional" ? "professional" : "customer");
-  const [step, setStep] = useState<1 | 2>(1);
+  const preset = params.get("role");
+  const [role, setRole] = useState<Role>(preset === "professional" ? "professional" : "customer");
+  const [step, setStep] = useState<Step>(preset === "professional" || preset === "customer" ? "account" : "role");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
@@ -68,139 +176,132 @@ function SignUpForm() {
     }
   }
 
-  return (
-    <div>
-      <h1 className="font-semiwide text-3xl font-bold">{step === 1 ? "Create your account" : "Your professional profile"}</h1>
-      <p className="mt-2 text-ink-3">
-        {step === 1 ? (
-          <>
-            Already on Handi?{" "}
-            <Link href="/sign-in" className="font-semibold text-stellar hover:underline">
-              Sign in
-            </Link>
-          </>
-        ) : (
-          "Customers see this when they compare professionals. Verification documents stay private."
-        )}
-      </p>
+  const back = () => setStep(step === "profile" ? "account" : "role");
 
-      {step === 1 ? (
-        <form
-          className="mt-8 flex flex-col gap-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (role === "professional") setStep(2);
-            else submit();
-          }}
+  return (
+    <MotionConfig reducedMotion="user">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={step}
+          initial={{ opacity: 0, x: 24 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -24 }}
+          transition={{ duration: 0.35, ease: EASE }}
         >
-          <fieldset>
-            <legend className="text-sm font-semibold">I want to</legend>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {[
-                { v: "customer" as const, icon: House, t: "Hire a professional" },
-                { v: "professional" as const, icon: Hammer, t: "Offer my services" },
-              ].map((o) => (
-                <label
-                  key={o.v}
-                  className={cn(
-                    "relative flex cursor-pointer flex-col gap-3 rounded-2xl border-2 bg-paper p-4 transition-colors",
-                    role === o.v ? "border-stellar" : "border-line hover:border-line-2",
+          {step === "role" ? (
+            <RolePicker
+              onPick={(r) => {
+                setRole(r);
+                setStep("account");
+              }}
+            />
+          ) : step === "account" ? (
+            <div>
+              <StepHeader role={role} step={step} onBack={back} />
+              <h1 className="font-semiwide text-3xl font-bold">Create your account</h1>
+              <p className="mb-8 mt-2 text-ink-3">
+                Already on UniFix?{" "}
+                <Link href="/sign-in" className="font-semibold text-stellar hover:underline">
+                  Sign in
+                </Link>
+              </p>
+              <form
+                className="flex flex-col gap-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (role === "professional") setStep("profile");
+                  else submit();
+                }}
+              >
+                <Field label="Full name">{(id) => <Input id={id} required autoComplete="name" value={acct.name} onChange={(e) => setAcct({ ...acct, name: e.target.value })} />}</Field>
+                <Field label="Email">{(id) => <Input id={id} type="email" required autoComplete="email" value={acct.email} onChange={(e) => setAcct({ ...acct, email: e.target.value })} />}</Field>
+                <Field label="Password" hint="At least 8 characters.">
+                  {(id) => <Input id={id} type="password" required minLength={8} autoComplete="new-password" value={acct.password} onChange={(e) => setAcct({ ...acct, password: e.target.value })} />}
+                </Field>
+                <Field label="City">
+                  {(id) => (
+                    <Select id={id} value={acct.city} onChange={(e) => setAcct({ ...acct, city: e.target.value })}>
+                      {CITIES.map((c) => (
+                        <option key={c.city}>{c.city}</option>
+                      ))}
+                    </Select>
                   )}
-                >
-                  <input type="radio" name="role" value={o.v} checked={role === o.v} onChange={() => setRole(o.v)} className="sr-only" />
-                  <o.icon className="size-5" aria-hidden />
-                  <span className="font-semibold leading-tight">{o.t}</span>
-                  {role === o.v && <Check className="absolute right-3 top-3 size-4" aria-hidden />}
-                </label>
-              ))}
+                </Field>
+                <ErrorNote error={error} />
+                <Button type="submit" size="lg" loading={busy}>
+                  {role === "professional" ? "Continue to profile" : "Create account"}
+                </Button>
+              </form>
             </div>
-          </fieldset>
-          <Field label="Full name">{(id) => <Input id={id} required autoComplete="name" value={acct.name} onChange={(e) => setAcct({ ...acct, name: e.target.value })} />}</Field>
-          <Field label="Email">{(id) => <Input id={id} type="email" required autoComplete="email" value={acct.email} onChange={(e) => setAcct({ ...acct, email: e.target.value })} />}</Field>
-          <Field label="Password" hint="At least 8 characters.">
-            {(id) => <Input id={id} type="password" required minLength={8} autoComplete="new-password" value={acct.password} onChange={(e) => setAcct({ ...acct, password: e.target.value })} />}
-          </Field>
-          <Field label="City">
-            {(id) => (
-              <Select id={id} value={acct.city} onChange={(e) => setAcct({ ...acct, city: e.target.value })}>
-                {CITIES.map((c) => (
-                  <option key={c.city}>{c.city}</option>
-                ))}
-              </Select>
-            )}
-          </Field>
-          <ErrorNote error={error} />
-          <Button type="submit" size="lg" loading={busy}>
-            {role === "professional" ? "Continue to profile" : "Create account"}
-          </Button>
-        </form>
-      ) : (
-        <form
-          className="mt-8 flex flex-col gap-5"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit();
-          }}
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Service">
-              {(id) => (
-                <Select id={id} value={pro.category} onChange={(e) => setPro({ ...pro, category: e.target.value as CategoryId })}>
-                  {CATEGORIES.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-            <Field label="Years of experience">
-              {(id) => <Input id={id} type="number" min={0} max={60} value={pro.yearsExperience} onChange={(e) => setPro({ ...pro, yearsExperience: Number(e.target.value) })} />}
-            </Field>
-          </div>
-          <Field label="Headline" hint="One line about what you do best.">
-            {(id) => <Input id={id} required maxLength={90} placeholder="House wiring, inverter and solar backup" value={pro.headline} onChange={(e) => setPro({ ...pro, headline: e.target.value })} />}
-          </Field>
-          <Field label="About your work">
-            {(id) => <Textarea id={id} required maxLength={600} value={pro.bio} onChange={(e) => setPro({ ...pro, bio: e.target.value })} />}
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Base area">{(id) => <Input id={id} required placeholder="Yaba" value={pro.area} onChange={(e) => setPro({ ...pro, area: e.target.value })} />}</Field>
-            <Field label={`Starting price (${country === "NG" ? "₦" : "GH₵"})`}>
-              {(id) => <Input id={id} type="number" min={0} value={pro.startingPrice} onChange={(e) => setPro({ ...pro, startingPrice: Number(e.target.value) })} />}
-            </Field>
-          </div>
-          <Field label="Areas you cover" hint="Separate with commas.">
-            {(id) => <Input id={id} placeholder="Yaba, Surulere, Ikoyi" value={pro.coverage} onChange={(e) => setPro({ ...pro, coverage: e.target.value })} />}
-          </Field>
-          <Field label="Skills" hint="Separate with commas.">
-            {(id) => <Input id={id} placeholder="Rewiring, fault tracing" value={pro.skills} onChange={(e) => setPro({ ...pro, skills: e.target.value })} />}
-          </Field>
-          <Field label="Availability">
-            {(id) => (
-              <Select id={id} value={pro.availability} onChange={(e) => setPro({ ...pro, availability: e.target.value as Professional["availability"] })}>
-                <option value="now">Available now</option>
-                <option value="today">Available today</option>
-                <option value="this-week">This week</option>
-              </Select>
-            )}
-          </Field>
-          <p className="rounded-lg bg-plaster-2 px-4 py-3 text-sm text-ink-2">
-            After sign-up, upload ID and trade certificates from your profile settings to get the verified badges. Until then your
-            profile shows as unverified.
-          </p>
-          <ErrorNote error={error} />
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="lg" onClick={() => setStep(1)}>
-              Back
-            </Button>
-            <Button type="submit" size="lg" loading={busy} className="flex-1">
-              Create professional account
-            </Button>
-          </div>
-        </form>
-      )}
-    </div>
+          ) : (
+            <div>
+              <StepHeader role={role} step={step} onBack={back} />
+              <h1 className="font-semiwide text-3xl font-bold">Your professional profile</h1>
+              <p className="mt-2 text-ink-3">Customers see this when they compare professionals. Verification documents stay private.</p>
+              <form
+                className="mt-8 flex flex-col gap-5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submit();
+                }}
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Service">
+                    {(id) => (
+                      <Select id={id} value={pro.category} onChange={(e) => setPro({ ...pro, category: e.target.value as CategoryId })}>
+                        {CATEGORIES.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  </Field>
+                  <Field label="Years of experience">
+                    {(id) => <Input id={id} type="number" min={0} max={60} value={pro.yearsExperience} onChange={(e) => setPro({ ...pro, yearsExperience: Number(e.target.value) })} />}
+                  </Field>
+                </div>
+                <Field label="Headline" hint="One line about what you do best.">
+                  {(id) => <Input id={id} required maxLength={90} placeholder="House wiring, inverter and solar backup" value={pro.headline} onChange={(e) => setPro({ ...pro, headline: e.target.value })} />}
+                </Field>
+                <Field label="About your work">
+                  {(id) => <Textarea id={id} required maxLength={600} value={pro.bio} onChange={(e) => setPro({ ...pro, bio: e.target.value })} />}
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Base area">{(id) => <Input id={id} required placeholder="Yaba" value={pro.area} onChange={(e) => setPro({ ...pro, area: e.target.value })} />}</Field>
+                  <Field label={`Starting price (${country === "NG" ? "₦" : "GH₵"})`}>
+                    {(id) => <Input id={id} type="number" min={0} value={pro.startingPrice} onChange={(e) => setPro({ ...pro, startingPrice: Number(e.target.value) })} />}
+                  </Field>
+                </div>
+                <Field label="Areas you cover" hint="Separate with commas.">
+                  {(id) => <Input id={id} placeholder="Yaba, Surulere, Ikoyi" value={pro.coverage} onChange={(e) => setPro({ ...pro, coverage: e.target.value })} />}
+                </Field>
+                <Field label="Skills" hint="Separate with commas.">
+                  {(id) => <Input id={id} placeholder="Rewiring, fault tracing" value={pro.skills} onChange={(e) => setPro({ ...pro, skills: e.target.value })} />}
+                </Field>
+                <Field label="Availability">
+                  {(id) => (
+                    <Select id={id} value={pro.availability} onChange={(e) => setPro({ ...pro, availability: e.target.value as Professional["availability"] })}>
+                      <option value="now">Available now</option>
+                      <option value="today">Available today</option>
+                      <option value="this-week">This week</option>
+                    </Select>
+                  )}
+                </Field>
+                <p className="rounded-lg bg-plaster-2 px-4 py-3 text-sm text-ink-2">
+                  After sign-up, upload ID and trade certificates from your profile settings to get the verified badges. Until then your
+                  profile shows as unverified.
+                </p>
+                <ErrorNote error={error} />
+                <Button type="submit" size="lg" loading={busy}>
+                  Create professional account
+                </Button>
+              </form>
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </MotionConfig>
   );
 }
 

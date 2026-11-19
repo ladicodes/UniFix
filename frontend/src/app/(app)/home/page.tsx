@@ -200,7 +200,7 @@ export default function HomePage() {
                 <p className="font-wide tnum text-3xl font-bold">{usdc(held)}</p>
                 <p className="text-ink-2">held in escrow across {heldList.length} booking{heldList.length === 1 ? "" : "s"}</p>
                 <p className="mt-3 text-sm text-ink-3">
-                  <span className="tnum font-semibold text-lagoon-ink">{usdc(released)}</span> {isPro ? "paid to you" : "released"} on Handi so far
+                  <span className="tnum font-semibold text-lagoon-ink">{usdc(released)}</span> {isPro ? "paid to you" : "released"} on UniFix so far
                 </p>
               </div>
               {heldList.length > 0 && (

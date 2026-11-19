@@ -57,7 +57,7 @@ function AccountForm({ user }: { user: User }) {
       <div className="sm:col-span-2">
         <p className="text-sm font-semibold">Sign-in email</p>
         <p className="mt-1 text-ink-2">
-          {user.email} <span className="text-sm text-ink-3">To change it, contact Handi support.</span>
+          {user.email} <span className="text-sm text-ink-3">To change it, contact UniFix support.</span>
         </p>
       </div>
       <div className="sm:col-span-2">
@@ -206,7 +206,7 @@ export default function ProfilePage() {
           )}
 
           {p && (
-            <Section title="Verification" body="Handi operations checks these documents. They are never shown publicly; customers only see the result.">
+            <Section title="Verification" body="UniFix operations checks these documents. They are never shown publicly; customers only see the result.">
               <ul className="divide-y divide-line">
                 {[
                   { ok: p.verification.identity, label: "Government ID" },

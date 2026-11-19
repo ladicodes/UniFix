@@ -116,7 +116,7 @@ function ApprovePanel({ b, onDispute }: { b: BookingBundle; onDispute: () => voi
       </div>
       <Dialog open={confirm} onClose={() => setConfirm(false)} title={`Release ${b.escrow?.amount.toFixed(2)} USDC to ${first}?`}>
         <p className="text-ink-2">
-          The contract sends the full escrowed amount to {b.professional.name}&apos;s wallet. After release, the funds cannot be refunded through Handi.
+          The contract sends the full escrowed amount to {b.professional.name}&apos;s wallet. After release, the funds cannot be refunded through UniFix.
         </p>
         <ErrorNote error={error} />
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">

@@ -73,8 +73,8 @@ export function useWallet() {
   return ctx;
 }
 
-const WALLET_KEY = "handi-wallet";
-const DEMO_ADDRESS = "GBHANDIDEMOCUSTOMERWALLETQ7XKJ5ZP6V3WRB2N8LYTFA4HGSUQM";
+const WALLET_KEY = "unifix-wallet";
+const DEMO_ADDRESS = "GBUNIFXDEMOCUSTOMERWALLETQ7XKJ5ZP6V3WRB2N8LYTFA4HGSUQM";
 
 function WalletProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<WalletStatus>("idle");

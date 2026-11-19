@@ -332,7 +332,7 @@ function QuoteMessage({ quote, viewerIsCustomer, onOpen }: { quote: Quote; viewe
 
 function ReportDialog({ open, onClose, peer }: { open: boolean; onClose: () => void; peer: string }) {
   const toast = useToast();
-  const [reason, setReason] = useState("Asked to pay outside Handi");
+  const [reason, setReason] = useState("Asked to pay outside UniFix");
   return (
     <Dialog open={open} onClose={onClose} title={`Report ${peer}`}>
       <form
@@ -340,13 +340,13 @@ function ReportDialog({ open, onClose, peer }: { open: boolean; onClose: () => v
         onSubmit={(e) => {
           e.preventDefault();
           onClose();
-          toast({ title: "Report sent", body: "Handi operations will review this conversation.", tone: "ok" });
+          toast({ title: "Report sent", body: "UniFix operations will review this conversation.", tone: "ok" });
         }}
       >
         <Field label="What happened?">
           {(fid) => (
             <Select id={fid} value={reason} onChange={(e) => setReason(e.target.value)}>
-              <option>Asked to pay outside Handi</option>
+              <option>Asked to pay outside UniFix</option>
               <option>Abusive or threatening language</option>
               <option>Spam or scam</option>
               <option>Something else</option>
