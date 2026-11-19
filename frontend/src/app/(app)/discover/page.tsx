@@ -2,7 +2,8 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { BadgeCheck, LayoutGrid, Search, SlidersHorizontal, Star } from "lucide-react";
+import { TRADE_ICON } from "@/components/trade-icon";
 import { CATEGORIES, cn } from "@/lib/format";
 import { useProfessionals } from "@/lib/hooks";
 import type { CategoryId, ProfessionalFilters } from "@/lib/types";
@@ -115,95 +116,145 @@ function Discover() {
   const catLabel = f.category && f.category !== "all" ? CATEGORIES.find((c) => c.id === f.category)?.plural : "Professionals";
   const activeCount = [f.city !== "all", f.availability !== "any", (f.minRating ?? 0) > 0, f.verifiedOnly].filter(Boolean).length;
 
-  return (
-    <div>
-      <h1 className="font-semiwide text-3xl font-bold">
-        {catLabel} {f.city && f.city !== "all" ? `in ${f.city}` : "in Nigeria and Ghana"}
-      </h1>
+  const chip = (on: boolean) =>
+    cn(
+      "inline-flex h-10 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition-colors",
+      on ? "border-ink bg-ink text-white" : "border-line bg-paper text-ink-2 hover:border-line-2 hover:text-ink",
+    );
 
-      {/* Search and categories stay under the app header while the list scrolls */}
-      <div className="sticky top-16 z-30 -mx-4 mt-4 border-b border-line bg-plaster px-4 pb-4 pt-3 sm:-mx-6 sm:px-6 lg:-mx-10 lg:px-10">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
+  return (
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs lg:p-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="font-semiwide text-3xl font-bold sm:text-4xl">
+              {catLabel} {f.city && f.city !== "all" ? `in ${f.city}` : "near you"}
+            </h1>
+            <p className="mt-2 text-ink-2">Verified professionals with ratings from paying customers. You only pay into escrow when you accept a quotation.</p>
+          </div>
+        </div>
+
+        <div className="relative mt-6">
+          <Search className="pointer-events-none absolute left-5 top-1/2 size-5 -translate-y-1/2 text-ink-3" aria-hidden />
           <Input
             aria-label="Search professionals"
             placeholder="Search by name, skill or area, like inverter or Lekki"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            className="h-12 rounded-full pl-10"
+            className="h-14 rounded-2xl pl-13 text-lg"
           />
         </div>
-        <Button variant="outline" className="h-12 lg:hidden" onClick={() => setSheet(true)} aria-label="Filters">
+
+        <div className="-mx-6 mt-6 overflow-x-auto px-6 lg:-mx-8 lg:px-8">
+          <div className="flex gap-3" role="group" aria-label="Service category">
+            {[{ id: "all" as const, plural: "All services" }, ...CATEGORIES].map((c) => {
+              const on = f.category === c.id;
+              const Icon = c.id === "all" ? LayoutGrid : TRADE_ICON[c.id];
+              return (
+                <button
+                  key={c.id}
+                  aria-pressed={on}
+                  onClick={() => set({ category: c.id as CategoryId | "all" })}
+                  className={cn(
+                    "flex w-28 shrink-0 flex-col items-center gap-2 rounded-2xl border px-3 py-4 text-center text-sm font-semibold transition",
+                    on ? "border-stellar bg-stellar-soft text-stellar-ink ring-1 ring-stellar" : "border-line bg-paper text-ink-2 hover:border-line-2 hover:text-ink",
+                  )}
+                >
+                  <span className={cn("grid size-11 place-items-center rounded-xl", on ? "bg-stellar text-white" : "bg-plaster text-ink-2")}>
+                    <Icon className="size-5" aria-hidden />
+                  </span>
+                  <span className="leading-tight">{c.plural}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="hidden flex-wrap items-center gap-2 lg:flex">
+          <label className="sr-only" htmlFor="f-city">
+            City
+          </label>
+          <div className="w-44">
+            <Select id="f-city" value={f.city ?? "all"} onChange={(e) => set({ city: e.target.value })} className="h-10 rounded-full text-sm font-semibold">
+              {CITIES.map((c) => (
+                <option key={c} value={c}>
+                  {c === "all" ? "All cities" : c}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {(
+            [
+              ["any", "Any time"],
+              ["today", "Today"],
+              ["now", "Available now"],
+            ] as const
+          ).map(([v, l]) => (
+            <button key={v} type="button" aria-pressed={(f.availability ?? "any") === v} onClick={() => set({ availability: v })} className={chip((f.availability ?? "any") === v)}>
+              {l}
+            </button>
+          ))}
+          <span className="mx-1 h-6 w-px bg-line" aria-hidden />
+          {[4, 4.5, 4.8].map((r) => (
+            <button key={r} type="button" aria-pressed={f.minRating === r} onClick={() => set({ minRating: f.minRating === r ? 0 : r })} className={chip(f.minRating === r)}>
+              <Star className="size-4" aria-hidden />
+              {r}+
+            </button>
+          ))}
+          <button type="button" aria-pressed={!!f.verifiedOnly} onClick={() => set({ verifiedOnly: !f.verifiedOnly })} className={chip(!!f.verifiedOnly)}>
+            <BadgeCheck className="size-4" aria-hidden />
+            Verified only
+          </button>
+        </div>
+        <Button variant="outline" className="h-10 rounded-full lg:hidden" onClick={() => setSheet(true)} aria-label="Filters">
           <SlidersHorizontal className="size-4" aria-hidden />
-          <span className="hidden sm:inline">Filters</span>
+          Filters
           {activeCount > 0 && <span className="grid size-5 place-items-center rounded-full bg-stellar text-xs text-white">{activeCount}</span>}
         </Button>
-      </div>
 
-      <div className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Service category">
-        {[{ id: "all", plural: "All services" }, ...CATEGORIES].map((c) => (
-          <button
-            key={c.id}
-            aria-pressed={f.category === c.id}
-            onClick={() => set({ category: c.id as CategoryId | "all" })}
-            className={cn(
-              "shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
-              f.category === c.id ? "border-stellar bg-stellar text-white" : "border-line bg-paper text-ink-2 hover:border-ink-4",
-            )}
-          >
-            {c.plural}
-          </button>
-        ))}
-      </div>
-      </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="hidden rounded-2xl border border-line bg-paper p-5 shadow-xs lg:sticky lg:top-52 lg:block lg:max-h-[calc(100dvh-14rem)] lg:self-start lg:overflow-y-auto" aria-label="Filters">
-          <Filters f={f} set={set} />
-        </aside>
-
-        <div>
-          <div className="mb-3 flex items-center justify-between gap-4">
-            <p className="text-sm text-ink-3" aria-live="polite">
-              {isLoading ? "Searching…" : `${data?.length ?? 0} result${data?.length === 1 ? "" : "s"}`}
-              {isFetching && !isLoading && " (updating)"}
-            </p>
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-ink-3">Sort</span>
-              <Select value={f.sort} onChange={(e) => set({ sort: e.target.value as ProfessionalFilters["sort"] })} className="h-9 w-auto py-0 text-sm">
-                <option value="best">Best rated</option>
-                <option value="most-jobs">Most jobs done</option>
-                <option value="experience">Most experience</option>
-              </Select>
-            </label>
+        <div className="ml-auto flex items-center gap-3">
+          <p className="text-sm text-ink-3" aria-live="polite">
+            {isLoading ? "Searching…" : `${data?.length ?? 0} result${data?.length === 1 ? "" : "s"}`}
+            {isFetching && !isLoading && " (updating)"}
+          </p>
+          <label className="sr-only" htmlFor="f-sort">
+            Sort
+          </label>
+          <div className="w-44">
+            <Select id="f-sort" value={f.sort} onChange={(e) => set({ sort: e.target.value as ProfessionalFilters["sort"] })} className="h-10 rounded-full text-sm font-semibold">
+              <option value="best">Best rated</option>
+              <option value="most-jobs">Most jobs done</option>
+              <option value="experience">Most experience</option>
+            </Select>
           </div>
-
-          {isLoading ? (
-            <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} className="h-60 rounded-2xl" />
-              ))}
-            </div>
-          ) : data?.length ? (
-            <div className={cn("grid gap-4 transition-opacity sm:grid-cols-2 2xl:grid-cols-3", isFetching && "opacity-70")}>
-              {data.map((p) => (
-                <ProCard key={p.id} p={p} />
-              ))}
-            </div>
-          ) : (
-            <Empty
-              title="No professionals match"
-              body="Try another city, lower the minimum rating, or include unverified professionals."
-              action={
-                <Button variant="outline" onClick={() => setF({ category: "all", city: "all", availability: "any", minRating: 0, sort: "best", q: "" })}>
-                  Clear all filters
-                </Button>
-              }
-            />
-          )}
         </div>
       </div>
+
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+            <Skeleton key={i} className="h-60 rounded-2xl" />
+          ))}
+        </div>
+      ) : data?.length ? (
+        <div className={cn("grid gap-4 transition-opacity sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4", isFetching && "opacity-70")}>
+          {data.map((p) => (
+            <ProCard key={p.id} p={p} />
+          ))}
+        </div>
+      ) : (
+        <Empty
+          title="No professionals match"
+          body="Try another city, lower the minimum rating, or include unverified professionals."
+          action={
+            <Button variant="outline" onClick={() => setF({ category: "all", city: "all", availability: "any", minRating: 0, sort: "best", q: "" })}>
+              Clear all filters
+            </Button>
+          }
+        />
+      )}
 
       <Dialog open={sheet} onClose={() => setSheet(false)} title="Filters">
         <Filters f={f} set={set} />
