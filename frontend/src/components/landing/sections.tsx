@@ -34,16 +34,61 @@ import type { CategoryId } from "@/lib/types";
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
-/** Fades and lifts its children in the first time they scroll into view. */
+/**
+ * Content is visible by default. Only when an element starts below the fold
+ * does it hide, so it can animate in as it scrolls into view. Nothing stays
+ * blank if an animation or observer never fires.
+ */
+function useScrollReveal<T extends Element>() {
+  const ref = useRef<T>(null);
+  const [state, setState] = useState<"idle" | "waiting" | "shown">("idle");
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let first = true;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const below = entry.boundingClientRect.top > (entry.rootBounds?.height ?? window.innerHeight);
+        if (first) {
+          first = false;
+          if (!entry.isIntersecting && below) {
+            setState("waiting");
+            return;
+          }
+          io.disconnect();
+          return;
+        }
+        if (entry.isIntersecting) {
+          setState("shown");
+          io.disconnect();
+        }
+      },
+      { threshold: 0.12 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return { ref, hidden: state === "waiting", played: state === "shown" };
+}
+
+const fadeUp: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0 },
+};
+
+/** Fades and lifts its children in when they scroll into view. */
 export function Reveal({ children, className, delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
+  const { ref, hidden } = useScrollReveal<HTMLDivElement>();
   return (
     <MotionConfig reducedMotion="user">
       <motion.div
+        ref={ref}
         className={className}
-        initial={{ opacity: 0, y: 24 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: "-80px" }}
-        transition={{ duration: 0.7, ease: EASE, delay }}
+        variants={fadeUp}
+        initial={false}
+        animate={hidden ? "hidden" : "show"}
+        transition={{ duration: hidden ? 0 : 0.7, ease: EASE, delay: hidden ? 0 : delay }}
       >
         {children}
       </motion.div>
@@ -328,7 +373,7 @@ export function HowItWorks() {
           <span className="tnum absolute left-6 top-5 text-sm font-semibold text-ink-3">
             Step {active + 1} of {STEPS.length}
           </span>
-          <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={active}
               className="relative flex w-full max-w-sm justify-center"
@@ -373,13 +418,14 @@ const TRADE_JOBS: Record<CategoryId, string> = {
 };
 
 export function TradeGrid() {
+  const { ref, hidden } = useScrollReveal<HTMLUListElement>();
   return (
     <MotionConfig reducedMotion="user">
       <motion.ul
+        ref={ref}
         className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, margin: "-80px" }}
+        initial={false}
+        animate={hidden ? "hidden" : "show"}
         variants={{ show: { transition: { staggerChildren: 0.06 } } }}
       >
         {CATEGORIES.map((c) => {
@@ -388,7 +434,7 @@ export function TradeGrid() {
             <motion.li
               key={c.id}
               variants={{
-                hidden: { opacity: 0, y: 20 },
+                hidden: { opacity: 0, y: 20, transition: { duration: 0 } },
                 show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } },
               }}
             >
@@ -456,19 +502,20 @@ const SAFEGUARDS = [
 ];
 
 export function Safeguards() {
+  const { ref, hidden } = useScrollReveal<HTMLDListElement>();
   return (
     <MotionConfig reducedMotion="user">
       <motion.dl
+        ref={ref}
         className="mt-10 grid gap-6 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3"
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, margin: "-60px" }}
+        initial={false}
+        animate={hidden ? "hidden" : "show"}
         variants={{ show: { transition: { staggerChildren: 0.12 } } }}
       >
         {SAFEGUARDS.map(({ Icon, t, d }) => (
           <motion.div
             key={t}
-            variants={{ hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } }}
+            variants={{ hidden: { opacity: 0, y: 16, transition: { duration: 0 } }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } }}
           >
             <span className="grid size-9 place-items-center rounded-lg bg-paper text-stellar shadow-lift">
               <Icon className="size-4" aria-hidden />
@@ -487,15 +534,16 @@ export function DisputeDemo() {
   const o = OUTCOMES.find((x) => x.id === pick)!;
   const toPro = Math.round(TOTAL * o.pro * 100) / 100;
   const toCustomer = Math.round((TOTAL - toPro) * 100) / 100;
+  const { ref, hidden } = useScrollReveal<HTMLDivElement>();
 
   return (
     <MotionConfig reducedMotion="user">
       <motion.div
+        ref={ref}
         className="w-full max-w-xl rounded-2xl bg-paper p-6 shadow-ticket sm:p-8 lg:justify-self-end"
-        initial={{ opacity: 0, y: 32, rotate: 1.5 }}
-        whileInView={{ opacity: 1, y: 0, rotate: 0 }}
-        viewport={{ once: true, margin: "-80px" }}
-        transition={{ duration: 0.8, ease: EASE }}
+        initial={false}
+        animate={hidden ? { opacity: 0, y: 32, rotate: 1.5 } : { opacity: 1, y: 0, rotate: 0 }}
+        transition={{ duration: hidden ? 0 : 0.8, ease: EASE }}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -558,17 +606,18 @@ const PRO_FEED = [
 ];
 
 export function ProFeed() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
-  const reduce = useReducedMotion();
-  const [revealed, setShown] = useState(0);
-  const shown = reduce && inView ? PRO_FEED.length : revealed;
+  // Every notification is visible unless the card starts below the fold;
+  // then they arrive one by one as it scrolls into view.
+  const { ref, hidden, played } = useScrollReveal<HTMLDivElement>();
+  const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!inView || reduce) return;
-    const timers = PRO_FEED.map((_, i) => setTimeout(() => setShown(i + 1), 300 + i * 900));
+    if (!played) return;
+    const timers = PRO_FEED.map((_, i) => setTimeout(() => setCount(i + 1), 300 + i * 900));
     return () => timers.forEach(clearTimeout);
-  }, [inView, reduce]);
+  }, [played]);
+
+  const shown = hidden ? 0 : played ? count : PRO_FEED.length;
 
   return (
     <MotionConfig reducedMotion="user">
