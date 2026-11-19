@@ -26,10 +26,13 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
   });
 
   return (
-    <div className="-mx-4 -my-6 grid h-[calc(100dvh-160px)] grid-rows-[minmax(0,1fr)] overflow-hidden sm:-mx-6 sm:-my-10 md:mx-0 md:my-0 md:h-[calc(100dvh-240px)] lg:h-[calc(100dvh-176px)] md:grid-cols-[300px_1fr] md:border-y md:border-line">
+    <div className="-mx-4 -my-6 grid h-[calc(100dvh-10.75rem)] grid-rows-[minmax(0,1fr)] overflow-hidden bg-paper sm:-mx-6 sm:-my-8 md:grid-cols-[24rem_minmax(0,1fr)] lg:-mx-10 lg:h-[calc(100dvh-5.75rem)]">
       <aside className={cn("flex min-h-0 flex-col md:border-r md:border-line", inThread && "hidden md:flex")}>
-        <div className="space-y-3 px-4 pb-3 pt-6 md:pt-4">
-          <h1 className="font-semiwide text-2xl font-bold md:sr-only">Messages</h1>
+        <div className="space-y-4 px-5 pb-4 pt-6 md:pt-5">
+          <div className="flex items-baseline justify-between">
+            <h1 className="font-semiwide text-2xl font-bold">Messages</h1>
+            {unreadCount > 0 && <span className="text-sm font-semibold text-stellar">{unreadCount} unread</span>}
+          </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-3" aria-hidden />
             <input
@@ -38,26 +41,33 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
               placeholder="Search messages"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="h-11 w-full rounded-full bg-plaster pl-10 pr-4 text-base placeholder:text-ink-3"
+              className="h-11 w-full rounded-xl border border-line bg-plaster pl-10 pr-4 text-base outline-none transition placeholder:text-ink-3 focus-visible:border-stellar focus-visible:bg-paper focus-visible:ring-4 focus-visible:ring-stellar-soft"
             />
           </div>
-          <div className="flex gap-2" role="group" aria-label="Filter conversations">
-            {(["all", "unread"] as const).map((f) => (
-              <button
-                key={f}
-                aria-pressed={filter === f}
-                onClick={() => setFilter(f)}
-                className={cn(
-                  "rounded-full px-4 py-2 text-sm font-semibold transition-colors",
-                  filter === f ? "bg-stellar text-white" : "bg-plaster text-ink-2 hover:bg-plaster-2",
-                )}
-              >
-                {f === "all" ? "All" : `Unread${unreadCount ? ` (${unreadCount})` : ""}`}
-              </button>
-            ))}
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-plaster p-1" role="group" aria-label="Filter conversations">
+            {(["all", "unread"] as const).map((f) => {
+              const on = filter === f;
+              const n = f === "all" ? (data?.length ?? 0) : unreadCount;
+              return (
+                <button
+                  key={f}
+                  aria-pressed={on}
+                  onClick={() => setFilter(f)}
+                  className={cn(
+                    "flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition",
+                    on ? "bg-paper text-ink shadow-xs" : "text-ink-3 hover:text-ink",
+                  )}
+                >
+                  {f === "all" ? "All" : "Unread"}
+                  <span className={cn("tnum grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-xs", on ? (f === "unread" && n ? "bg-stellar text-white" : "bg-plaster text-ink-2") : "bg-plaster-2 text-ink-3")}>
+                    {n}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
-        <ul className="min-h-0 flex-1 overflow-y-auto border-t border-line">
+        <ul className="min-h-0 flex-1 overflow-y-auto border-t border-line py-2">
           {isLoading &&
             [0, 1, 2].map((i) => (
               <li key={i} className="flex gap-3 px-4 py-4">
@@ -95,10 +105,9 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
                 <Link
                   href={`/messages/${c.id}`}
                   aria-current={active ? "page" : undefined}
-                  className={cn("relative flex gap-3 px-4 py-4 transition-colors", active ? "bg-stellar-soft/60" : "hover:bg-plaster")}
+                  className={cn("relative mx-2 my-0.5 flex gap-3 rounded-xl px-3 py-3 transition-colors", active ? "bg-stellar-soft" : "hover:bg-plaster")}
                 >
-                  {active && <span className="absolute inset-y-2 left-0 hidden w-1 rounded-r-full bg-stellar md:block" aria-hidden />}
-                  <span className="relative">
+                                    <span className="relative">
                     <Avatar name={other} size={46} />
                     {online && <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-paper bg-lagoon" aria-label="Online" />}
                   </span>

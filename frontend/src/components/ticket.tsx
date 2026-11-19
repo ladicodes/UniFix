@@ -35,7 +35,7 @@ export interface TicketProps {
 }
 
 /**
- * The Handi agreement ticket. One object that follows the job from accepted
+ * The UniFix agreement ticket. One object that follows the job from accepted
  * quotation to released payment. The hazard band appears only while money is held.
  */
 export function AgreementTicket(p: TicketProps) {
@@ -65,7 +65,7 @@ export function AgreementTicket(p: TicketProps) {
 
       <div className="relative h-4">
         <span className={cn("absolute -left-2.5 top-0 size-5 rounded-full", p.notch ?? "bg-paper")} />
-        <span className="perf absolute inset-x-5 top-1/2 h-1 -translate-y-1/2" />
+        <span className="perf absolute inset-x-5 top-1/2 -translate-y-1/2" />
         <span className={cn("absolute -right-2.5 top-0 size-5 rounded-full", p.notch ?? "bg-paper")} />
       </div>
 
@@ -115,7 +115,7 @@ export function AgreementTicket(p: TicketProps) {
           <motion.div key="disputed" initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
             <div className="flex items-center gap-3 bg-clay px-6 py-3 text-sm text-white">
               <ShieldAlert className="size-4" aria-hidden />
-              <span className="font-semibold">Locked while Handi reviews the dispute</span>
+              <span className="font-semibold">Locked while UniFix reviews the dispute</span>
             </div>
           </motion.div>
         )}

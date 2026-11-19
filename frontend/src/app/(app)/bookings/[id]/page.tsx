@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, Hourglass, Loader2, Lock, MapPin, MessageCircle, Play, ShieldCheck } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Hourglass, Loader2, Lock, MapPin, MessageCircle, Play, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { categoryLabel, cn, dateTime, money, toUsdc } from "@/lib/format";
 import { signXdr } from "@/lib/stellar";
@@ -11,6 +11,7 @@ import { useBooking } from "@/lib/hooks";
 import type { BookingBundle, TimelineEvent } from "@/lib/types";
 import { useSession, useToast, useWallet } from "@/components/providers";
 import { BookingBadge } from "@/components/status";
+import { Track } from "@/components/job-track";
 import { AgreementTicket, type TicketStage } from "@/components/ticket";
 import { EscrowCard } from "@/components/booking/escrow-card";
 import { FundPanel } from "@/components/booking/fund-panel";
@@ -40,10 +41,10 @@ const ACTOR_DOT: Record<TimelineEvent["actor"], string> = {
 
 function Timeline({ events }: { events: TimelineEvent[] }) {
   return (
-    <ol className="relative space-y-4 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-line">
+    <ol className="relative space-y-4 before:absolute before:bottom-2 before:left-1.5 before:top-2 before:w-px before:bg-line">
       {[...events].reverse().map((e, i) => (
         <li key={i} className="relative flex gap-4 pl-0">
-          <span className={cn("relative z-10 mt-2 size-[11px] shrink-0 rounded-full ring-4 ring-paper", ACTOR_DOT[e.actor])} aria-hidden />
+          <span className={cn("relative z-10 mt-2 size-3 shrink-0 rounded-full ring-4 ring-paper", ACTOR_DOT[e.actor])} aria-hidden />
           <div>
             <p className="text-base font-semibold">{e.label}</p>
             <p className="text-sm text-ink-3">
@@ -116,7 +117,7 @@ function ApprovePanel({ b, onDispute }: { b: BookingBundle; onDispute: () => voi
       </div>
       <Dialog open={confirm} onClose={() => setConfirm(false)} title={`Release ${b.escrow?.amount.toFixed(2)} USDC to ${first}?`}>
         <p className="text-ink-2">
-          The contract sends the full escrowed amount to {b.professional.name}&apos;s wallet. After release, the funds cannot be refunded through Handi.
+          The contract sends the full escrowed amount to {b.professional.name}&apos;s wallet. After release, the funds cannot be refunded through UniFix.
         </p>
         <ErrorNote error={error} />
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -226,16 +227,18 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:gap-10">
-      <div className="min-w-0 space-y-8">
-        <div>
-          <Link href="/bookings" className="text-sm font-semibold text-ink-3 hover:text-ink">
-            All bookings
-          </Link>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_26rem]">
+      <div className="min-w-0 space-y-6">
+        <Link href="/bookings" className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink">
+          <ArrowLeft className="size-4" aria-hidden />
+          All bookings
+        </Link>
+        <div className="rounded-2xl border border-line bg-paper p-6 shadow-xs sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <BookingBadge status={status} />
+            <Track status={status} />
           </div>
-          <h1 className="font-semiwide mt-2 text-2xl font-bold leading-tight sm:text-3xl">{b.booking.title}</h1>
+          <h1 className="font-semiwide mt-4 text-2xl font-bold leading-tight sm:text-3xl">{b.booking.title}</h1>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
             <span className="flex items-center gap-3">
               <Avatar name={other} size={32} />
@@ -254,41 +257,39 @@ export default function BookingPage() {
           </div>
         </div>
 
-        {action && (
-          <div className="rounded-2xl bg-plaster p-5 sm:p-8">{action}</div>
-        )}
+        {action && <div className="rounded-2xl border-2 border-stellar bg-paper p-6 shadow-lift sm:p-8">{action}</div>}
 
         {b.dispute && (
-          <div className="rounded-2xl bg-clay-soft/60 p-5 sm:p-8">
+          <div className="rounded-2xl border border-clay/30 bg-clay-soft p-6 sm:p-8">
             <DisputeView d={b.dispute} />
           </div>
         )}
 
         {b.booking.completion && (
-          <section className="border-t border-line pt-8">
+          <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs sm:p-8">
             <EvidenceView e={b.booking.completion} proName={b.professional.name} />
           </section>
         )}
 
         {status === "COMPLETED" && (
           <>
-            <section className="border-t border-line pt-8">
+            <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs sm:p-8">
               <Receipt b={b} />
             </section>
             {isCustomer && (
-              <section className={b.review ? "border-t border-line pt-8" : "rounded-2xl bg-plaster p-5 sm:p-8"}>
+              <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs sm:p-8">
                 {b.review ? <ReviewDone r={b.review} /> : <ReviewForm bookingId={b.booking.id} proName={b.professional.name} />}
               </section>
             )}
             {isPro && b.review && (
-              <section className="border-t border-line pt-8">
+              <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs sm:p-8">
                 <ReviewDone r={b.review} />
               </section>
             )}
           </>
         )}
 
-        <section className="border-t border-line pt-8">
+        <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs sm:p-8">
           <h2 className="mb-5 text-lg font-semibold">Activity</h2>
           <Timeline events={b.booking.timeline} />
         </section>
@@ -304,7 +305,7 @@ export default function BookingPage() {
         )}
       </div>
 
-      <aside className="space-y-5 lg:sticky lg:top-24 lg:self-start">
+      <aside className="space-y-5 lg:sticky lg:top-24 lg:mt-11 lg:self-start">
         <AgreementTicket
           title={b.quote.title}
           professional={b.professional.name}
@@ -317,7 +318,7 @@ export default function BookingPage() {
           version={b.quote.version}
           txHash={b.escrow?.transactions.find((t) => t.kind === "FUND")?.hash}
         />
-        <p className="flex items-start gap-2 px-1 text-sm text-ink-3">
+        <p className="flex items-start gap-2 rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink-3">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-lagoon" aria-hidden />
           <span>
             Agreed {money(b.quote.total, b.quote.currency)} on {dateTime(b.quote.acceptedAt ?? b.booking.createdAt)}. Changes need a new quotation.

@@ -77,7 +77,7 @@ export interface DisputeBundle {
 
 export type ChangeListener = () => void;
 
-export interface HandiApi {
+export interface UniFixApi {
   mode: "demo" | "live";
   signIn(email: string, password: string): Promise<User>;
   signUp(input: SignUpInput): Promise<User>;

@@ -99,7 +99,7 @@ export default function AdminPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [resolving, setResolving] = useState(false);
 
-  if (user && user.role !== "admin") return <Empty title="Admins only" body="This area is for Handi operations and dispute resolvers." />;
+  if (user && user.role !== "admin") return <Empty title="Admins only" body="This area is for UniFix operations and dispute resolvers." />;
 
   const current = data?.find((d) => d.dispute.id === selected) ?? data?.[0];
   const open = data?.filter((d) => d.dispute.status === "OPEN" || d.dispute.status === "UNDER_REVIEW").length ?? 0;

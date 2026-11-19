@@ -120,10 +120,17 @@ export default function ChatPage() {
             {online ? <span className="font-semibold text-lagoon">Online</span> : peerSub}
           </p>
         </div>
-        {data.conversation.bookingId && (
+        {data.conversation.bookingId ? (
           <Button href={`/bookings/${data.conversation.bookingId}`} variant="outline" size="sm" className="hidden sm:inline-flex">
             View booking
           </Button>
+        ) : (
+          !isCustomer && (
+            <Button size="sm" onClick={() => setQuoteOpen(true)}>
+              <FileText className="size-4" aria-hidden />
+              {latestQuote ? "Revise quotation" : "Send quotation"}
+            </Button>
+          )
         )}
         <Button variant="ghost" size="sm" aria-label={`Call ${peer}`} onClick={() => setCallOpen(true)}>
           <Phone className="size-4" />
@@ -138,7 +145,7 @@ export default function ChatPage() {
         <button
           type="button"
           onClick={() => setQuoteView(latestQuote)}
-          className="flex items-center gap-3 border-b border-line px-3 py-3 text-left transition-colors hover:bg-plaster sm:px-5 2xl:hidden"
+          className="flex items-center gap-3 border-b border-line px-3 py-3 text-left transition-colors hover:bg-plaster sm:px-5 xl:hidden"
         >
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold">{latestQuote.title}</span>
@@ -209,7 +216,7 @@ export default function ChatPage() {
             key={r}
             type="button"
             onClick={() => setText(r)}
-            className="shrink-0 rounded-full bg-plaster px-3 py-1 text-sm text-ink-2 transition-colors hover:bg-stellar-soft hover:text-stellar-ink"
+            className="shrink-0 rounded-full border border-line bg-paper px-3 py-1 text-sm text-ink-2 transition-colors hover:bg-stellar-soft hover:text-stellar-ink"
           >
             {r}
           </button>
@@ -279,7 +286,7 @@ export default function ChatPage() {
       </Dialog>
     </div>
 
-    <aside aria-label="Job details" className="hidden w-90 shrink-0 flex-col border-l border-line bg-paper 2xl:flex">
+    <aside aria-label="Job details" className="hidden w-90 shrink-0 flex-col border-l border-line bg-paper xl:flex">
       <div className="border-b border-line px-5 py-4">
         <h2 className="font-semibold">The job</h2>
         <p className="text-sm text-ink-3">
@@ -294,12 +301,20 @@ export default function ChatPage() {
             Describe the job and ask {peer.split(" ")[0]} for a quotation. It shows up here with the price breakdown, ready to accept.
           </p>
         ) : (
-          <>
-            <p className="leading-relaxed text-ink-2">When you know the scope, send a quotation. The customer accepts it and pays into escrow.</p>
-            <Button className="mt-4" onClick={() => setQuoteOpen(true)}>
+          <div className="rounded-2xl border-2 border-dashed border-line p-5">
+            <span className="grid size-10 place-items-center rounded-xl bg-stellar-soft text-stellar">
+              <FileText className="size-5" aria-hidden />
+            </span>
+            <p className="mt-4 font-semibold">No quotation yet</p>
+            <ol className="mt-3 space-y-2 text-sm text-ink-2">
+              <li>1. Agree the scope in chat. Ask for photos if you need them.</li>
+              <li>2. Send a quotation with labour, materials and a finish date.</li>
+              <li>3. When {peer.split(" ")[0]} accepts, they pay into escrow before you start.</li>
+            </ol>
+            <Button className="mt-5 w-full" onClick={() => setQuoteOpen(true)}>
               Send quotation
             </Button>
-          </>
+          </div>
         )}
       </div>
     </aside>
@@ -332,7 +347,7 @@ function QuoteMessage({ quote, viewerIsCustomer, onOpen }: { quote: Quote; viewe
 
 function ReportDialog({ open, onClose, peer }: { open: boolean; onClose: () => void; peer: string }) {
   const toast = useToast();
-  const [reason, setReason] = useState("Asked to pay outside Handi");
+  const [reason, setReason] = useState("Asked to pay outside UniFix");
   return (
     <Dialog open={open} onClose={onClose} title={`Report ${peer}`}>
       <form
@@ -340,13 +355,13 @@ function ReportDialog({ open, onClose, peer }: { open: boolean; onClose: () => v
         onSubmit={(e) => {
           e.preventDefault();
           onClose();
-          toast({ title: "Report sent", body: "Handi operations will review this conversation.", tone: "ok" });
+          toast({ title: "Report sent", body: "UniFix operations will review this conversation.", tone: "ok" });
         }}
       >
         <Field label="What happened?">
           {(fid) => (
             <Select id={fid} value={reason} onChange={(e) => setReason(e.target.value)}>
-              <option>Asked to pay outside Handi</option>
+              <option>Asked to pay outside UniFix</option>
               <option>Abusive or threatening language</option>
               <option>Spam or scam</option>
               <option>Something else</option>

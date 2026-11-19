@@ -1,4 +1,4 @@
-// Domain types for Handi. These mirror the PRD entities and are the shape the
+// Domain types for UniFix. These mirror the PRD entities and are the shape the
 // frontend expects from the FastAPI backend (see README "API contract").
 
 export type Role = "customer" | "professional" | "admin";
@@ -71,6 +71,8 @@ export interface Professional {
   portfolio: PortfolioItem[];
   ratingBreakdown: RatingBreakdown;
   joinedAt: string;
+  /** True while the professional has a job in progress. Derived, read-only. */
+  onJob?: boolean;
 }
 
 export interface Review {

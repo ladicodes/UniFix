@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
-  Handi design tokens. Components use these roles only.
+  UniFix design tokens. Components use these roles only.
 
   Neutrals are one cool family (a little indigo), from ink text to the page.
   Colour roles, one meaning each:
@@ -10,8 +10,8 @@
     lagoon   released, verified, available now
     clay     dispute, error, destructive confirmation
 
-  Type: Archivo. Width carries hierarchy: wide only for the hero line and
-  money amounts; semiwide for page titles; normal for everything you read.
+  Type: Bricolage Grotesque for display (hero lines, titles, money) and
+  Instrument Sans for everything you read.
   Sizes come from Tailwind's scale only (12 14 16 18 20 24 30 36 48 60).
   Weights: 400 body, 600 emphasis, 700 display.
   Radii: lg (8) controls, 2xl (16) panels and sheets, full for chips/avatars.
@@ -19,7 +19,9 @@
 */
 
 @theme {
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  /* The font variables come from next/font in layout.tsx; the fallbacks cover a failed font load. */
+  --font-sans: var(--font-instrument, ui-sans-serif), system-ui, sans-serif;
+  --font-display: var(--font-bricolage, var(--font-instrument, ui-sans-serif)), system-ui, sans-serif;
 
   --color-ink: #17143f;
   --color-ink-2: #3c3967;
@@ -30,6 +32,9 @@
   --color-paper: #ffffff;
   --color-line: #e2e1ec;
   --color-line-2: #8f8db0;
+  /* Text on the dark ink surface: 10.6:1 and 7.5:1 on ink. */
+  --color-mist: #c9c8dc;
+  --color-mist-2: #a9a7c6;
 
   --color-danfo: #f5b400;
   --color-danfo-soft: #fff2c6;
@@ -53,6 +58,19 @@
   --shadow-ticket: 0 1px 2px rgb(0 0 0 / 0.06), 0 24px 48px -20px rgb(0 0 0 / 0.22);
 
   --animate-stripe: stripe 1.4s linear infinite;
+  --animate-rise: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-underline: underline 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+  @keyframes underline {
+    from {
+      transform: scaleX(0);
+    }
+  }
   @keyframes stripe {
     to {
       background-position: 34px 0;
@@ -62,6 +80,12 @@
 
 :root {
   color-scheme: light;
+  /* Avatar tints: quiet, carry no meaning, only keep people apart at a glance. */
+  --tint-1: #e8e6fb;
+  --tint-2: #dcefe8;
+  --tint-3: #fbe9da;
+  --tint-4: #dfeaf8;
+  --tint-5: #f1e3f0;
   accent-color: var(--color-stellar);
   caret-color: var(--color-stellar);
 }
@@ -96,17 +120,23 @@ p {
   outline-offset: 2px;
 }
 
+/* Display type: hero lines and money (font-wide), page and section titles (font-semiwide). */
 @utility font-wide {
-  font-stretch: 125%;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.03em;
 }
 @utility font-semiwide {
-  font-stretch: 112%;
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
 }
 @utility tnum {
   font-variant-numeric: tabular-nums;
 }
 
-/* The signature: a yellow band means money is held in escrow. Used nowhere else. */
+/* The signature (written decision, README "Design"): a yellow band means money is held in
+   escrow. It is the only gradient in the product and is used nowhere else. */
 @utility hazard {
   background-image: repeating-linear-gradient(-45deg, var(--color-danfo) 0 12px, var(--color-danfo-light) 12px 24px);
   background-size: 34px 34px;
@@ -114,10 +144,7 @@ p {
 
 /* Ticket perforation */
 @utility perf {
-  background-image: radial-gradient(circle, var(--color-ink-4) 1.5px, transparent 1.6px);
-  background-size: 10px 4px;
-  background-repeat: repeat-x;
-  background-position: center;
+  border-top: 2px dotted var(--color-ink-4);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -153,5 +180,12 @@ p {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-underline {
+    animation: none;
   }
 }
