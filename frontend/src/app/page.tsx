@@ -4,7 +4,7 @@ import { HeroDemo } from "@/components/landing/hero-demo";
 import { HeroCopy } from "@/components/landing/hero-copy";
 import { LandingNav } from "@/components/landing/nav";
 import { DisputeDemo, HowItWorks, ProFeed, Reveal, Safeguards, TradeGrid } from "@/components/landing/sections";
-import { Logo } from "@/components/ui";
+import { SiteFooter } from "@/components/site-footer";
 
 const pad = "px-4 sm:px-6 lg:px-10";
 
@@ -98,12 +98,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-line">
-        <div className={`flex w-full flex-col gap-4 py-10 text-sm text-ink-3 sm:flex-row sm:items-center sm:justify-between ${pad}`}>
-          <Logo className="text-lg" />
-          <p>Built for the Stellar Buildathon. Payments run on Stellar testnet.</p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

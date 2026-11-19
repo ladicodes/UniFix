@@ -8,10 +8,10 @@ import { Avatar, Logo } from "@/components/ui";
 import { cn } from "@/lib/format";
 
 const LINKS = [
-  { href: "#how", label: "How it works" },
-  { href: "#services", label: "Services" },
-  { href: "#safety", label: "Disputes" },
-  { href: "#pros", label: "For professionals" },
+  { href: "/#how", label: "How it works" },
+  { href: "/#services", label: "Services" },
+  { href: "/#safety", label: "Disputes" },
+  { href: "/#pros", label: "For professionals" },
 ];
 
 export function LandingNav() {
