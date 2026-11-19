@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
-import { BadgeCheck, CircleDashed, Clock, Hammer, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CircleDashed, Clock, Hammer, MapPin, MessageCircle, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import { categoryLabel, cn, money, overall, RATING_LABELS, shortDate } from "@/lib/format";
 import { useLive, useProfessional, useReviews } from "@/lib/hooks";
@@ -88,6 +88,14 @@ function ReviewItem({ r, proName }: { r: Review; proName: string }) {
   );
 }
 
+const WORK_TONE: Record<string, string> = {
+  ink: "bg-ink text-white",
+  danfo: "bg-plaster-2 text-ink",
+  lagoon: "bg-lagoon-soft text-lagoon-ink",
+  clay: "bg-clay-soft text-clay-ink",
+  stellar: "bg-stellar-soft text-stellar-ink",
+};
+
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -125,15 +133,20 @@ export default function ProfilePage() {
   const canMessage = !user || user.role === "customer";
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[1fr_340px]">
-      <div className="min-w-0">
-        <Link href="/discover" className="text-sm font-semibold text-ink-3 hover:text-ink">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
+      <div className="min-w-0 space-y-6">
+        <Link href="/discover" className="inline-flex items-center gap-1 text-sm font-semibold text-ink-3 hover:text-ink">
+          <ArrowLeft className="size-4" aria-hidden />
           Back to results
         </Link>
 
-        <header className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
-          <Avatar name={p.name} size={88} />
-          <div>
+        <section className="overflow-hidden rounded-2xl border border-line bg-paper shadow-xs">
+        <div className="h-24 bg-ink" aria-hidden>
+          <div className="h-full w-full opacity-40 [background:radial-gradient(circle_at_85%_30%,var(--color-stellar),transparent_55%)]" />
+        </div>
+        <header className="flex flex-col gap-5 px-6 sm:flex-row sm:items-end lg:px-8">
+          <Avatar name={p.name} size={104} className="-mt-12 ring-4 ring-paper" />
+          <div className="pb-1">
             <h1 className="font-semiwide text-3xl font-bold leading-tight">{p.name}</h1>
             <p className="mt-1 text-lg text-ink-2">
               {categoryLabel(p.category)} in {p.area}, {p.city}
@@ -155,23 +168,24 @@ export default function ProfilePage() {
           </div>
         </header>
 
-        <p className="mt-8 max-w-prose text-lg leading-relaxed text-ink-2">{p.bio}</p>
+        <p className="max-w-prose px-6 pb-8 pt-6 text-lg leading-relaxed text-ink-2 lg:px-8">{p.bio}</p>
+        </section>
 
         {p.portfolio.length > 0 && (
-          <section className="mt-10">
+          <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs lg:p-8">
             <h2 className="text-lg font-semibold">Recent work</h2>
-            <ul className="mt-3 divide-y divide-line border-y border-line">
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {p.portfolio.map((w) => (
-                <li key={w.id} className="py-3 text-ink-2">
-                  {w.caption}
+                <li key={w.id} className={cn("flex aspect-[4/3] flex-col justify-end rounded-xl p-4", WORK_TONE[w.tone])}>
+                  <Hammer className="mb-auto size-5 opacity-70" aria-hidden />
+                  <span className="text-sm font-semibold leading-snug">{w.caption}</span>
                 </li>
               ))}
             </ul>
-            
           </section>
         )}
 
-        <section className="mt-12" aria-labelledby="ratings">
+        <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs lg:p-8" aria-labelledby="ratings">
           <h2 id="ratings" className="text-lg font-semibold">
             Ratings
           </h2>
@@ -181,7 +195,7 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        <section className="mt-10" aria-labelledby="reviews">
+        <section className="rounded-2xl border border-line bg-paper p-6 shadow-xs lg:p-8" aria-labelledby="reviews">
           <h2 id="reviews" className="text-lg font-semibold">
             Reviews
           </h2>
@@ -197,7 +211,7 @@ export default function ProfilePage() {
         </section>
       </div>
 
-      <aside className="lg:sticky lg:top-24 lg:self-start">
+      <aside className="lg:sticky lg:top-24 lg:mt-11 lg:self-start">
         <Surface className="p-6">
           <p className="text-sm text-ink-3">Starting from</p>
           <p className="font-wide tnum text-3xl font-bold tracking-tight">{money(p.startingPrice, p.currency)}</p>
