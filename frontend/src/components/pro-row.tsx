@@ -11,6 +11,24 @@ export const AVAILABILITY: Record<Professional["availability"], { label: string;
   unavailable: { label: "Not taking jobs", cls: "text-ink-3" },
 };
 
+/** Availability as the professional set it, or "On a job" while one is in progress. */
+export function AvailabilityChip({ p, className }: { p: Professional; className?: string }) {
+  const a = AVAILABILITY[p.availability];
+  if (p.onJob && p.availability !== "unavailable")
+    return (
+      <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-stellar-soft px-2.5 py-1 text-xs font-semibold text-stellar-ink", className)}>
+        <span className="size-1.5 rounded-full bg-stellar" aria-hidden />
+        On a job{p.availability === "now" ? ", free soon" : ""}
+      </span>
+    );
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-plaster px-2.5 py-1 text-xs font-semibold", a.cls, className)}>
+      <span className={cn("size-1.5 rounded-full", p.availability === "now" ? "bg-lagoon" : p.availability === "unavailable" ? "bg-ink-4" : "bg-ink-3")} aria-hidden />
+      {a.label}
+    </span>
+  );
+}
+
 export function VerifiedMark({ p, className }: { p: Professional; className?: string }) {
   const full = p.verification.identity && p.verification.trade;
   if (!p.verification.identity) return null;
@@ -66,7 +84,6 @@ export function ProRow({ p }: { p: Professional }) {
 
 /** Grid card for search results: who, how good, how much, how soon. */
 export function ProCard({ p }: { p: Professional }) {
-  const a = AVAILABILITY[p.availability];
   return (
     <Link
       href={`/pros/${p.id}`}
@@ -113,10 +130,7 @@ export function ProCard({ p }: { p: Professional }) {
           From
           <span className="font-wide tnum block text-xl font-bold text-ink">{money(p.startingPrice, p.currency)}</span>
         </p>
-        <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-plaster px-2.5 py-1 text-xs font-semibold", a.cls)}>
-          <span className={cn("size-1.5 rounded-full", p.availability === "now" ? "bg-lagoon" : p.availability === "unavailable" ? "bg-ink-4" : "bg-ink-3")} aria-hidden />
-          {a.label}
-        </span>
+        <AvailabilityChip p={p} />
       </div>
     </Link>
   );

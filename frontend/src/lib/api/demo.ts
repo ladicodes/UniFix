@@ -100,6 +100,10 @@ const userOf = (uid: string) => {
   return u;
 };
 const proUserId = (pid: string) => proOf(pid).userId;
+const withOnJob = (p: Professional): Professional => ({
+  ...p,
+  onJob: load().bookings.some((b) => b.professionalId === p.id && b.status === "IN_PROGRESS"),
+});
 
 function notify(userId: string, title: string, body: string, href: string) {
   const n: AppNotification = { id: id("n"), userId, title, body, href, at: now(), read: false };
@@ -369,12 +373,12 @@ export const demoApi: UniFixApi = {
       experience: (a, b) => b.yearsExperience - a.yearsExperience,
     };
     list = [...list].sort(sorters[f.sort ?? "best"]);
-    return clone(list);
+    return clone(list.map(withOnJob));
   },
 
   async getProfessional(pid) {
     await wait(180);
-    return clone(proOf(pid));
+    return clone(withOnJob(proOf(pid)));
   },
 
   async listReviews(pid) {

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, BriefcaseBusiness, ChevronDown, House, LogOut, MessageCircle, RotateCcw, Scale, Search, UserRound, Wallet } from "lucide-react";
+import { Bell, BriefcaseBusiness, Check, ChevronDown, House, LogOut, MessageCircle, RotateCcw, Scale, Search, UserRound, Wallet } from "lucide-react";
 import { api, IS_DEMO } from "@/lib/api";
 import { DEMO_ACCOUNTS, resetDemo } from "@/lib/api/demo";
 import { nextStep } from "@/lib/booking";
 import { cn, shortAddress, timeAgo } from "@/lib/format";
-import { useBookings, useConversations, useNotifications } from "@/lib/hooks";
+import { useBookings, useConversations, useNotifications, useProfessional } from "@/lib/hooks";
+import type { Professional } from "@/lib/types";
 import { useSession, useToast, useWallet } from "./providers";
 import { Avatar, Logo } from "./ui";
 
@@ -108,6 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-2">
             {user ? (
               <>
+                {user.role === "professional" && <AvailabilityMenu />}
                 <WalletChip />
                 <NotificationsMenu />
                 <AccountMenu />
@@ -146,6 +148,91 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </ul>
         </nav>
+      )}
+    </div>
+  );
+}
+
+const STATUS: { value: Professional["availability"]; label: string; hint: string; dot: string }[] = [
+  { value: "now", label: "Available now", hint: "Customers see you can come today", dot: "bg-lagoon" },
+  { value: "today", label: "Available today", hint: "Free later today", dot: "bg-ink-3" },
+  { value: "this-week", label: "This week", hint: "Booking a few days out", dot: "bg-ink-3" },
+  { value: "unavailable", label: "Paused", hint: "Hidden from new customers", dot: "bg-ink-4" },
+];
+
+/* A professional's status: what customers see on their card. "On a job" is added automatically. */
+function AvailabilityMenu() {
+  const { user } = useSession();
+  const toast = useToast();
+  const { data: p, refetch } = useProfessional(user?.professionalId ?? "");
+  const { data: bookings } = useBookings(!!user);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useOutside(ref, () => setOpen(false));
+  if (!p) return null;
+  const current = STATUS.find((x) => x.value === p.availability) ?? STATUS[0];
+  const job = (bookings ?? []).find((b) => b.booking.professionalId === p.id && b.booking.status === "IN_PROGRESS");
+
+  async function choose(availability: Professional["availability"]) {
+    if (!p) return;
+    setBusy(true);
+    try {
+      await api.updateProfessional(p.id, {
+        headline: p.headline,
+        bio: p.bio,
+        availability,
+        startingPrice: p.startingPrice,
+        skills: p.skills,
+        coverage: p.coverage,
+        area: p.area,
+      });
+      await refetch();
+      setOpen(false);
+      toast({ title: `Status: ${STATUS.find((x) => x.value === availability)!.label}`, tone: "ok" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={`Your status: ${job ? "on a job" : current.label}`}
+        className="flex h-9 items-center gap-2 rounded-full border border-line bg-paper px-3 text-sm font-semibold text-ink-2 hover:border-line-2"
+      >
+        <span className={cn("size-2 rounded-full", job ? "bg-stellar" : current.dot)} aria-hidden />
+        <span className="hidden md:inline">{job ? "On a job" : current.label}</span>
+        <ChevronDown className="size-4 text-ink-3" aria-hidden />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-12 z-50 w-80 rounded-2xl border border-line bg-paper p-2 shadow-lift">
+          {job && (
+            <Link href={`/bookings/${job.booking.id}`} onClick={() => setOpen(false)} className="mb-2 block rounded-xl bg-stellar-soft p-3 text-sm">
+              <span className="block font-semibold text-stellar-ink">On a job now</span>
+              <span className="block truncate text-ink-2">{job.booking.title}</span>
+              <span className="mt-1 block text-xs text-ink-3">Shown on your card until you submit completion.</span>
+            </Link>
+          )}
+          <p className="px-3 pb-1 pt-1 text-xs font-semibold text-ink-3">Your availability</p>
+          {STATUS.map((x) => (
+            <button
+              key={x.value}
+              disabled={busy}
+              onClick={() => choose(x.value)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-plaster disabled:opacity-60"
+            >
+              <span className={cn("size-2.5 shrink-0 rounded-full", x.dot)} aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{x.label}</span>
+                <span className="block text-xs text-ink-3">{x.hint}</span>
+              </span>
+              {x.value === p.availability && <Check className="size-4 text-stellar" aria-hidden />}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

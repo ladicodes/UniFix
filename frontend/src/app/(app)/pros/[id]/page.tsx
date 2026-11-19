@@ -9,7 +9,7 @@ import { categoryLabel, cn, money, overall, RATING_LABELS, shortDate } from "@/l
 import { useLive, useProfessional, useReviews } from "@/lib/hooks";
 import type { Professional, RatingKey, Review } from "@/lib/types";
 import { useSession } from "@/components/providers";
-import { AVAILABILITY } from "@/components/pro-row";
+import { AvailabilityChip } from "@/components/pro-row";
 import { Avatar, Badge, Button, ErrorNote, Skeleton, Stars, Surface } from "@/components/ui";
 
 function Verification({ p }: { p: Professional }) {
@@ -128,7 +128,6 @@ export default function ProfilePage() {
     );
   if (error || !p) return <ErrorNote error={error ?? "Professional not found."} />;
 
-  const a = AVAILABILITY[p.availability];
   const isMe = user?.professionalId === p.id;
   const canMessage = !user || user.role === "customer";
 
@@ -213,7 +212,7 @@ export default function ProfilePage() {
         <Surface className="p-6">
           <p className="text-sm text-ink-3">Starting from</p>
           <p className="font-wide tnum text-3xl font-bold tracking-tight">{money(p.startingPrice, p.currency)}</p>
-          <p className={cn("mt-2 text-sm font-semibold", a.cls)}>{a.label}</p>
+          <AvailabilityChip p={p} className="mt-3" />
           {canMessage && !isMe && (
             <Button size="lg" className="mt-5 w-full" onClick={message} loading={busy}>
               <MessageCircle className="size-5" aria-hidden />

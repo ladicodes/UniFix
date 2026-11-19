@@ -71,6 +71,8 @@ export interface Professional {
   portfolio: PortfolioItem[];
   ratingBreakdown: RatingBreakdown;
   joinedAt: string;
+  /** True while the professional has a job in progress. Derived, read-only. */
+  onJob?: boolean;
 }
 
 export interface Review {
