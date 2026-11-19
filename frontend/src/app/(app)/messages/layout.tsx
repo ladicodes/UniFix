@@ -26,7 +26,7 @@ export default function MessagesLayout({ children }: { children: React.ReactNode
   });
 
   return (
-    <div className="-mx-4 -my-6 grid h-[calc(100dvh-10rem)] grid-rows-[minmax(0,1fr)] overflow-hidden bg-paper sm:-mx-6 sm:-my-8 md:mx-0 md:my-0 md:h-[calc(100dvh-11rem)] md:grid-cols-[22rem_minmax(0,1fr)] md:rounded-2xl md:border md:border-line md:shadow-xs lg:h-[calc(100dvh-9.5rem)]">
+    <div className="-mx-4 -my-6 grid h-[calc(100dvh-10.75rem)] grid-rows-[minmax(0,1fr)] overflow-hidden bg-paper sm:-mx-6 sm:-my-8 md:grid-cols-[24rem_minmax(0,1fr)] lg:-mx-10 lg:h-[calc(100dvh-5.75rem)]">
       <aside className={cn("flex min-h-0 flex-col md:border-r md:border-line", inThread && "hidden md:flex")}>
         <div className="space-y-4 px-5 pb-0 pt-6 md:pt-5">
           <div className="flex items-baseline justify-between">
