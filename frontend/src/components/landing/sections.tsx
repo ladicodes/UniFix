@@ -465,8 +465,9 @@ export function TradeGrid() {
 /* ------------------------------------------------------------------ */
 
 function CountUp({ to, className, suffix = "", decimals = 2 }: { to: number; className?: string; suffix?: string; decimals?: number }) {
-  const [v, setV] = useState(0);
-  const from = useRef(0);
+  // Starts at the target so server and client render the same text.
+  const [v, setV] = useState(to);
+  const from = useRef(to);
   const reduce = useReducedMotion();
   useEffect(() => {
     if (reduce) return;

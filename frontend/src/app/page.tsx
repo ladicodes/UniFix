@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { ArrowRight, BadgeCheck } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { HeroDemo } from "@/components/landing/hero-demo";
-import { HeroSearch } from "@/components/landing/hero-search";
+import { HeroCopy } from "@/components/landing/hero-copy";
 import { LandingNav } from "@/components/landing/nav";
 import { DisputeDemo, HowItWorks, ProFeed, Reveal, Safeguards, TradeGrid } from "@/components/landing/sections";
 import { Logo } from "@/components/ui";
@@ -14,37 +14,16 @@ export default function Home() {
       <LandingNav />
 
       <main>
-        <section className={`grid gap-10 pb-16 pt-6 md:pt-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:items-stretch lg:gap-12 ${pad}`}>
-          <div className="flex flex-col justify-center lg:py-10">
-            <h1 className="font-wide text-5xl font-bold leading-none tracking-tight sm:text-6xl lg:text-5xl xl:text-6xl 2xl:text-7xl">
-              <span className="block">Agree on the job.</span>
-              <span className="block">Pay when it&apos;s done.</span>
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-2">
-              Hire electricians, plumbers, AC technicians and mechanics in Nigeria and Ghana. Your payment waits in a Stellar escrow
-              contract until you approve the finished work.
-            </p>
-            <div className="mt-8">
-              <HeroSearch />
+        <section className="relative overflow-hidden">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 [background-image:radial-gradient(var(--color-line)_1px,transparent_1px)] [background-size:22px_22px] [mask-image:linear-gradient(to_bottom,black,transparent_85%)]"
+          />
+          <div className={`relative grid items-center gap-12 pb-20 pt-8 md:pt-14 lg:grid-cols-2 lg:gap-10 xl:gap-16 ${pad}`}>
+            <HeroCopy />
+            <div className="relative">
+              <HeroDemo />
             </div>
-            <ul className="mt-8 grid max-w-xl gap-4 border-t border-line pt-6 sm:grid-cols-3">
-              {[
-                { t: "Escrow on Stellar", d: "A Soroban contract holds your payment until you approve the work." },
-                { t: "Verified reviews", d: "Only customers with a paid booking can rate." },
-                { t: "Dispute review", d: "A UniFix resolver checks the evidence before any refund or release." },
-              ].map((x) => (
-                <li key={x.t}>
-                  <p className="flex items-center gap-2 font-semibold">
-                    <BadgeCheck className="size-4 shrink-0 text-lagoon" aria-hidden />
-                    {x.t}
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed text-ink-3">{x.d}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex items-center rounded-2xl bg-plaster px-4 py-10 sm:px-8 lg:py-12">
-            <HeroDemo />
           </div>
         </section>
 

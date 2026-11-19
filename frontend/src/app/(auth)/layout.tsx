@@ -10,7 +10,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Logo />
         </Link>
         <div className="flex flex-1 items-center py-10">
-          <div className="mx-auto w-full max-w-lg">{children}</div>
+          <div className="mx-auto w-full max-w-2xl">{children}</div>
         </div>
       </div>
       <AuthAside />

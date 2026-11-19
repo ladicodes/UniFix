@@ -18,7 +18,6 @@ const CHAT = [
   { me: true, t: "My bedroom AC is blowing warm air since Sunday." },
   { me: false, t: "Is the outdoor fan spinning? Any frost on the pipes?" },
   { me: true, t: "Fan spins. Bit of frost near the valve." },
-  { me: false, t: "Sounds like a slow gas leak. Sending a quotation now." },
 ];
 
 /** The hero scene: the chat where the job was agreed, the agreement ticket, and the notification each side gets. */
@@ -37,9 +36,9 @@ export function HeroDemo() {
 
   return (
     <div className="w-full">
-      <div className="relative mx-auto w-full max-w-[38rem] sm:h-[34rem] 2xl:max-w-[44rem]">
+      <div className="relative mx-auto w-full max-w-[40rem] sm:h-[36rem] 2xl:max-w-[44rem]">
         {/* Chat window */}
-        <div className="hidden overflow-hidden rounded-2xl border border-line bg-paper shadow-lift sm:absolute sm:left-0 sm:top-0 sm:block sm:w-[72%]">
+        <div className="hidden overflow-hidden rounded-2xl border border-line bg-paper shadow-lift sm:absolute sm:left-0 sm:top-6 sm:block sm:w-[70%]">
           <div className="flex items-center gap-3 border-b border-line px-4 py-3">
             <span className="relative">
               <Avatar name="Tunde Bakare" size={36} />
@@ -53,7 +52,7 @@ export function HeroDemo() {
             </span>
             <Phone className="size-4 text-ink-3" aria-hidden />
           </div>
-          <div className="space-y-2 bg-plaster/60 p-4 pb-40 text-sm">
+          <div className="space-y-2 bg-plaster/60 p-4 pb-48 text-sm">
             {CHAT.map((m) => (
               <p
                 key={m.t}
@@ -65,11 +64,16 @@ export function HeroDemo() {
                 {m.t}
               </p>
             ))}
+            <span className="flex w-14 items-center justify-center gap-1 rounded-2xl rounded-bl-md border border-line bg-paper px-3 py-3" aria-hidden>
+              {[0, 1, 2].map((d) => (
+                <span key={d} className="size-1.5 animate-bounce rounded-full bg-ink-4" style={{ animationDelay: `${d * 0.15}s` }} />
+              ))}
+            </span>
           </div>
         </div>
 
         {/* Agreement ticket over the chat */}
-        <div className="relative sm:absolute sm:bottom-0 sm:right-0 sm:w-[64%]">
+        <div className="relative sm:absolute sm:bottom-0 sm:right-0 sm:w-[62%]">
           <AgreementTicket
             compact
             title="Bedroom 1.5HP split AC: gas refill and leak fix"
@@ -86,18 +90,18 @@ export function HeroDemo() {
         </div>
 
         {/* Notification for the current step */}
-        <div className="mb-4 sm:absolute sm:right-0 sm:top-10 sm:mb-0 sm:w-64" aria-live="polite">
-          <AnimatePresence mode="wait">
+        <div className="mb-4 sm:absolute sm:-right-2 sm:top-0 sm:z-10 sm:mb-0 sm:w-64" aria-live="polite">
+          <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={i}
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="flex gap-3 rounded-lg border border-line bg-paper p-3 shadow-lift"
+              className="flex gap-3 rounded-xl border border-line bg-paper p-3 shadow-ticket"
             >
-              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-plaster">
-                <Bell className="size-4 text-ink-2" aria-hidden />
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-stellar text-white">
+                <Bell className="size-4" aria-hidden />
               </span>
               <span className="text-sm">
                 <span className="block text-xs text-ink-3">{s.to}, just now</span>
@@ -109,7 +113,7 @@ export function HeroDemo() {
       </div>
 
       {/* Step through the example */}
-      <div className="mx-auto mt-6 flex w-fit gap-1 rounded-full bg-paper p-1" role="group" aria-label="Example booking steps">
+      <div className="mx-auto mt-6 flex w-fit gap-1 rounded-full border border-line bg-paper p-1 shadow-lift" role="group" aria-label="Example booking steps">
         {SCRIPT.map((x, n) => (
           <button
             key={x.stage}

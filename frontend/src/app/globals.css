@@ -53,6 +53,19 @@
   --shadow-ticket: 0 1px 2px rgb(0 0 0 / 0.06), 0 24px 48px -20px rgb(0 0 0 / 0.22);
 
   --animate-stripe: stripe 1.4s linear infinite;
+  --animate-rise: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-underline: underline 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+  @keyframes underline {
+    from {
+      transform: scaleX(0);
+    }
+  }
   @keyframes stripe {
     to {
       background-position: 34px 0;
@@ -153,5 +166,12 @@ p {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise,
+  .animate-underline {
+    animation: none;
   }
 }

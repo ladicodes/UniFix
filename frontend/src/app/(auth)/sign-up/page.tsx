@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { ArrowLeft, ArrowRight, Check, Hammer, House } from "lucide-react";
+import { ArrowLeft, ArrowRight, BadgeCheck, Bell, Check, Hammer, House, Lock, Star } from "lucide-react";
 import { api } from "@/lib/api";
 import type { SignUpInput } from "@/lib/api";
-import { CATEGORIES } from "@/lib/format";
+import { CATEGORIES, cn } from "@/lib/format";
 import type { CategoryId, Professional } from "@/lib/types";
 import { useSession } from "@/components/providers";
 import { Button, ErrorNote, Field, Input, Select, Textarea } from "@/components/ui";
@@ -21,64 +21,119 @@ const ROLES = [
   {
     v: "customer" as const,
     Icon: House,
-    t: "I need something fixed",
+    t: "Hire a professional",
     d: "Hire a verified professional and pay only when the job is done.",
     perks: ["Compare verified ratings", "Locked quotations", "Payment held in escrow"],
   },
   {
     v: "professional" as const,
     Icon: Hammer,
-    t: "I fix things",
+    t: "Offer my services",
     d: "Offer your services and start every job with the money already held.",
     perks: ["Get booked by nearby customers", "Paid to your Stellar wallet", "Ratings from paying customers"],
   },
 ];
 
+function CustomerPreview() {
+  return (
+    <div className="w-full rounded-xl bg-paper p-3 text-xs shadow-lift">
+      <div className="flex items-center gap-2">
+        <span className="grid size-8 place-items-center rounded-full bg-stellar-soft text-[11px] font-bold text-stellar-ink">TB</span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1 font-semibold text-ink">
+            Tunde B. <BadgeCheck className="size-3 text-lagoon" aria-hidden />
+          </span>
+          <span className="flex items-center gap-0.5 text-ink-3">
+            <Star className="size-3 fill-danfo text-danfo" aria-hidden /> 4.8 · AC technician
+          </span>
+        </span>
+      </div>
+      <div className="mt-2 flex items-center justify-between border-t border-line pt-2">
+        <span className="text-ink-3">From</span>
+        <span className="tnum font-semibold text-ink">₦15,000</span>
+      </div>
+    </div>
+  );
+}
+
+function ProPreview() {
+  return (
+    <div className="w-full overflow-hidden rounded-xl bg-paper text-xs shadow-lift">
+      <div className="flex items-start gap-2 p-3">
+        <span className="grid size-6 shrink-0 place-items-center rounded-md bg-stellar text-white">
+          <Bell className="size-3" aria-hidden />
+        </span>
+        <span>
+          <span className="block font-semibold text-ink">Payment secured</span>
+          <span className="block text-ink-3">You can start the job.</span>
+        </span>
+      </div>
+      <div className="hazard h-1.5 animate-stripe" />
+      <div className="flex items-center gap-1.5 bg-danfo px-3 py-1.5 font-semibold text-ink">
+        <Lock className="size-3" aria-hidden /> 30.65 USDC held
+      </div>
+    </div>
+  );
+}
+
+const PREVIEW: Record<Role, () => React.ReactElement> = { customer: CustomerPreview, professional: ProPreview };
+
 function RolePicker({ onPick }: { onPick: (r: Role) => void }) {
   return (
     <div>
-      <h1 className="font-semiwide text-3xl font-bold sm:text-4xl">Join UniFix</h1>
-      <p className="mt-2 text-ink-3">
-        How will you use UniFix? You can&apos;t switch later, so pick the one that fits.{" "}
+      <p className="text-sm font-semibold text-stellar">Step 1</p>
+      <h1 className="font-semiwide mt-1 text-3xl font-bold sm:text-4xl">How will you use UniFix?</h1>
+      <p className="mt-2 max-w-lg text-ink-3">
+        Pick one to continue. Already have an account?{" "}
         <Link href="/sign-in" className="font-semibold text-stellar hover:underline">
-          Sign in instead
+          Sign in
         </Link>
       </p>
-      <motion.ul
-        className="mt-8 grid gap-4"
-        initial="hidden"
-        animate="show"
-        variants={{ show: { transition: { staggerChildren: 0.1, delayChildren: 0.1 } } }}
-      >
-        {ROLES.map(({ v, Icon, t, d, perks }) => (
-          <motion.li key={v} variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } } }}>
-            <button
-              type="button"
-              onClick={() => onPick(v)}
-              className="group relative flex w-full gap-5 overflow-hidden rounded-2xl border-2 border-line bg-paper p-6 text-left transition duration-300 hover:-translate-y-0.5 hover:border-stellar hover:shadow-lift focus-visible:border-stellar"
-            >
-              <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-plaster text-ink transition-colors duration-300 group-hover:bg-stellar group-hover:text-white">
-                <Icon className="size-6" aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-3">
-                  <span className="text-xl font-semibold">{t}</span>
-                  <ArrowRight className="size-5 shrink-0 text-ink-4 transition duration-300 group-hover:translate-x-1 group-hover:text-stellar" aria-hidden />
+      <ul className="mt-8 grid gap-4 sm:grid-cols-2">
+        {ROLES.map(({ v, Icon, t, d, perks }, i) => {
+          const Preview = PREVIEW[v];
+          return (
+            <li key={v} className="animate-rise" style={{ animationDelay: `${0.08 + i * 0.1}s` }}>
+              <button
+                type="button"
+                onClick={() => onPick(v)}
+                className="group relative flex h-full w-full flex-col overflow-hidden rounded-2xl border-2 border-line bg-paper text-left transition duration-300 hover:-translate-y-1 hover:border-stellar hover:shadow-ticket focus-visible:border-stellar"
+              >
+                <span
+                  className={cn(
+                    "flex h-44 items-center justify-center p-6",
+                    v === "customer" ? "bg-stellar-soft" : "bg-ink",
+                  )}
+                  aria-hidden
+                >
+                  <span className="block w-full max-w-60 transition-transform duration-300 group-hover:-rotate-2 group-hover:scale-105">
+                    <Preview />
+                  </span>
                 </span>
-                <span className="mt-1 block text-ink-2">{d}</span>
-                <span className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5">
-                  {perks.map((p) => (
-                    <span key={p} className="flex items-center gap-1.5 text-sm text-ink-3">
-                      <Check className="size-3.5 text-lagoon" aria-hidden />
-                      {p}
-                    </span>
-                  ))}
+                <span className="flex min-w-0 flex-1 flex-col p-6">
+                  <span className="flex items-center gap-2">
+                    <Icon className="size-5 text-stellar" aria-hidden />
+                    <span className="text-lg font-semibold">{t}</span>
+                  </span>
+                  <span className="mt-1 block text-sm leading-relaxed text-ink-2">{d}</span>
+                  <span className="mt-3 flex flex-col gap-1">
+                    {perks.map((p) => (
+                      <span key={p} className="flex items-center gap-1.5 text-sm text-ink-3">
+                        <Check className="size-3.5 shrink-0 text-lagoon" aria-hidden />
+                        {p}
+                      </span>
+                    ))}
+                  </span>
+                  <span className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-stellar">
+                    Continue
+                    <ArrowRight className="size-4 transition-transform duration-300 group-hover:translate-x-1" aria-hidden />
+                  </span>
                 </span>
-              </span>
-            </button>
-          </motion.li>
-        ))}
-      </motion.ul>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -196,7 +251,7 @@ function SignUpForm() {
               }}
             />
           ) : step === "account" ? (
-            <div>
+            <div className="mx-auto max-w-lg">
               <StepHeader role={role} step={step} onBack={back} />
               <h1 className="font-semiwide text-3xl font-bold">Create your account</h1>
               <p className="mb-8 mt-2 text-ink-3">
@@ -234,7 +289,7 @@ function SignUpForm() {
               </form>
             </div>
           ) : (
-            <div>
+            <div className="mx-auto max-w-lg">
               <StepHeader role={role} step={step} onBack={back} />
               <h1 className="font-semiwide text-3xl font-bold">Your professional profile</h1>
               <p className="mt-2 text-ink-3">Customers see this when they compare professionals. Verification documents stay private.</p>
