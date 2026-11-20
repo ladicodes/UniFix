@@ -103,7 +103,8 @@ multisig accounts (see [Security](#security)).
 
 ### Verified on testnet
 
-Transactions from the end-to-end run of 2026-11-19, driven through the HTTP API:
+Transactions from the end-to-end runs of 2026-11-19 and 2026-11-20 (the second run passed all 10 testnet
+tests), driven through the HTTP API:
 
 | Path | Steps |
 |---|---|
@@ -113,6 +114,7 @@ Transactions from the end-to-end run of 2026-11-19, driven through the HTTP API:
 | Keeper auto-release | [fund](https://stellar.expert/explorer/testnet/tx/30f82ed4030dc04f67d4bcb9111af557095c97cb1469a628ffd2a938a949c6ab) · [submit_completion](https://stellar.expert/explorer/testnet/tx/1f7a509b555a79666c14a3da8b5b7ed2a8d0d4c376a4a3e24ca17bd48f98a1ac) · [finalize_expired](https://stellar.expert/explorer/testnet/tx/42868e6f8e2a9c77f6ebe0870b4846a38a13d594f31b540c39ee44bf7518eee4) |
 | Arbiter: release | [fund](https://stellar.expert/explorer/testnet/tx/e2b49c9676ceccb0fa21dffdecae489ec34547e9eedec8b6d9729b2d6d373436) · [open_dispute](https://stellar.expert/explorer/testnet/tx/1ebcb474d1ee75f57b42634df07218bd1489bfe0b78a88cad4fce061ee7c4f37) · [resolve](https://stellar.expert/explorer/testnet/tx/944bee121e06d62221abc93ccdb417f0a23d6c06d0f58e6f8d1ce44c5a041378) |
 | Arbiter: refund | [fund](https://stellar.expert/explorer/testnet/tx/12472f8c6ea342ea3bd4975a6cddacc0dcaa7b5fa8077b48eaf07920e03f0b40) · [open_dispute](https://stellar.expert/explorer/testnet/tx/b72599682467f4855909a52c4faf5a59889a8a71d979e5acb65ec8f46c7e0de2) · [resolve](https://stellar.expert/explorer/testnet/tx/eb8edd9f52207991a16d72481439e4386ee83d3e81382a0393cde7e3a3399ae3) |
+| Arbiter: split (40 % to professional) | [fund](https://stellar.expert/explorer/testnet/tx/d774bf69575b589eed7be2780f297d63031c7fbd916e21be174a1131a89d8e6f) · [open_dispute](https://stellar.expert/explorer/testnet/tx/0f35b3ab620eb66c0f462431b9a58f59bfe83cbf74af5698a0667014a5c510b3) · [resolve](https://stellar.expert/explorer/testnet/tx/83abcc2871a57ae4ff99d2af57430df22ccd1f238eb87de52b78dcfde37a0ffe) |
 | Customer concedes | [fund](https://stellar.expert/explorer/testnet/tx/e1881110030636460174582f5a68bcd3ccde53cf1751f31f1eb0034e07a5d6de) · [open_dispute](https://stellar.expert/explorer/testnet/tx/4e0a71d57af152d95f309973587c758723ff459a1f242f3eb9d136d97b4911b6) · [release](https://stellar.expert/explorer/testnet/tx/3e56d4d8dee9b4812ccdf5e75ad66d3de6a4208dd9dfb5f8ac2f623efad349d9) |
 | Professional concedes | [fund](https://stellar.expert/explorer/testnet/tx/82d7d2678125a2831de7764e510eef6d14fb73da1ab98f2c1f12b5e6e83ad649) · [open_dispute](https://stellar.expert/explorer/testnet/tx/cd48748d7adf1108d2cb1064b227e806e440a94e0980cd651007af3cd24ef361) · [refund](https://stellar.expert/explorer/testnet/tx/5612a8a0a17f032280ae6615ed64ab2d5711b534af8c80d6f793abb9e98225c6) |
 
