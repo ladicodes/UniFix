@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     login_lockout_seconds: int = Field(default=900, ge=60)
     auth_ip_rate_limit_per_minute: int = Field(default=30, ge=1)
     email_action_rate_limit_per_hour: int = Field(default=5, ge=1)
+    # Backstop for every authenticated write (POST/PATCH/PUT/DELETE), per user, on top of the
+    # route-specific limits (login, chat, uploads, requests, wallet challenges, WS tickets).
+    user_write_rate_limit_per_minute: int = Field(default=120, ge=1)
 
     email_backend: EmailBackend = EmailBackend.CONSOLE
     email_from: str = "UniFix <no-reply@localhost>"
@@ -144,6 +147,11 @@ class Settings(BaseSettings):
     wallet_challenge_rate_limit_per_hour: int = Field(default=20, ge=1)
 
     frontend_base_url: str = "http://localhost:3000"
+    # Request size limits (enforced in middleware before the body is parsed).
+    max_request_body_bytes: int = Field(default=1024 * 1024, ge=16 * 1024, le=16 * 1024 * 1024)
+    max_upload_body_bytes: int = Field(default=11 * 1024 * 1024, ge=1024 * 1024, le=64 * 1024 * 1024)
+    # Swagger UI and the OpenAPI document; off by default in production.
+    expose_api_docs: bool | None = None
     email_verification_ttl_seconds: int = Field(default=24 * 3600, ge=600)
     password_reset_ttl_seconds: int = Field(default=3600, ge=600)
 
@@ -265,6 +273,19 @@ class Settings(BaseSettings):
             problems.append("STORAGE_BACKEND must be s3 (local is development/test only)")
         if self.password_hash_memory_kib < 65536 or self.password_hash_time_cost < 3:
             problems.append("password hashing parameters are below the production minimum")
+        for name, value in (
+            ("ESCROW_ID_SECRET", self.escrow_id_secret),
+            ("SMTP_PASSWORD", self.smtp_password),
+            ("S3_SECRET_ACCESS_KEY", self.s3_secret_access_key),
+        ):
+            if value is not None and _EXAMPLE_SECRET_MARKER in value.get_secret_value():
+                problems.append(f"{name} still contains the example value")
+        if not self.frontend_base_url.startswith("https://"):
+            problems.append("FRONTEND_BASE_URL must be https")
+        if self.frontend_base_url.rstrip("/").lower() not in self.cors_origins:
+            problems.append("FRONTEND_BASE_URL must be one of CORS_ORIGINS (the CSRF origin allowlist)")
+        if self.log_level.upper() == "DEBUG":
+            problems.append("LOG_LEVEL=DEBUG is not allowed in production")
         if problems:
             raise ValueError("Insecure production configuration: " + "; ".join(problems))
 
@@ -276,6 +297,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.env is Environment.PRODUCTION
+
+    @property
+    def api_docs_enabled(self) -> bool:
+        return (not self.is_production) if self.expose_api_docs is None else self.expose_api_docs
 
 
 @lru_cache(maxsize=1)

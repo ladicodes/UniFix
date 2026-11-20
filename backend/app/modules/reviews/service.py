@@ -21,6 +21,8 @@ from app.modules.bookings import service as bookings
 from app.modules.bookings.models import Booking, BookingStatus, TimelineActor
 from app.modules.chat import service as chat
 from app.modules.chat.models import Report, ReportTarget
+from app.modules.notifications import service as notifications
+from app.modules.notifications.models import NotificationType
 from app.modules.professionals.models import ProfessionalProfile
 from app.modules.reviews.models import CATEGORIES, Review, ReviewStatus
 from app.modules.reviews.schemas import (
@@ -143,6 +145,16 @@ async def create(
         session, booking, label="Customer left a review", actor=TimelineActor.CUSTOMER,
         actor_user_id=caller.user_id, now=now, data={"overall": str(review.overall)},
     )  # fmt: skip
+    await notifications.notify(
+        session,
+        await bookings.professional_user_id(session, booking),
+        NotificationType.REVIEW_RECEIVED,
+        title="New review",
+        body=f"{caller.user.full_name} rated '{booking.title}' {review.overall}/5.",
+        href=f"/pros/{booking.professional_id}",
+        data={"review_id": str(review.id)},
+        now=now,
+    )
     await audit.record(
         session, action="review.created", entity_type="review", entity_id=review.id,
         actor_user_id=caller.user_id, data={"booking_id": str(booking.id), "overall": str(review.overall)},

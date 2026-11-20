@@ -47,6 +47,7 @@ from app.modules.chat.schemas import (
     ReportIn,
     SendMessageIn,
 )
+from app.modules.notifications import service as notifications
 from app.modules.professionals import repository as professionals_repository
 from app.modules.professionals import service as professionals
 from app.modules.professionals.repository import SearchRow
@@ -435,8 +436,16 @@ async def send_message(
     member.last_read_message_id = message.id
     member.last_read_at = now
     await _record_response_time(session, conversation, caller, message)
-    await session.commit()
     members = await repository.members(session, conversation_id)
+    await notifications.notify_message(
+        session,
+        [m.user_id for m in members if m.user_id != caller.user_id],
+        conversation_id=conversation_id,
+        sender_name=caller.user.full_name,
+        preview=_preview(message),
+        now=now,
+    )
+    await session.commit()
     out = (await messages_out(session, services, [message], members))[0]
     await hub.publish(
         conversation_id,

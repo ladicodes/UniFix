@@ -132,6 +132,12 @@ class Escrow(UUIDPrimaryKey, Timestamps, Base):
         Index("ix_escrows_keeper_review", "state", "review_deadline"),
         Index("ix_escrows_customer_wallet", "customer_wallet"),
         Index("ix_escrows_professional_wallet", "professional_wallet"),
+        Index("ix_escrows_created_at", "created_at"),
+        Index(
+            "ix_escrows_failed_verification",
+            "created_at",
+            postgresql_where=text("verification_error IS NOT NULL"),
+        ),
     )
 
     booking_id: Mapped[uuid.UUID] = mapped_column(

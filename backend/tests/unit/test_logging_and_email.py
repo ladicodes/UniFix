@@ -19,6 +19,11 @@ from app.core.logging import RedactingFilter, redact
         ('{"new_password":"s3cr3t-value"}', "s3cr3t-value"),
         ("Cookie: __Secure-unifix_rt=rawrefreshvalue; other=1", "rawrefreshvalue"),
         ("signed_xdr=AAAAAgAAAAB", "AAAAAgAAAAB"),
+        (
+            "operator SAKICEVQLYWGSOJS4WW7HZJWAHZVEEBS527LHK5V4MLJALYKICQCJXMW loaded",
+            "SAKICEVQLYWGSOJS4WW7HZJWAHZVEEBS527LHK5V4MLJALYKICQCJXMW",
+        ),
+        ('{"escrow_id_secret": "abc-123-def"}', "abc-123-def"),
     ],
 )
 def test_redaction_removes_secrets(raw: str, secret: str) -> None:

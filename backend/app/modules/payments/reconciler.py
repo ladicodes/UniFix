@@ -42,6 +42,8 @@ from app.modules.audit.models import ActorType
 from app.modules.bookings import service as bookings
 from app.modules.bookings.models import Booking, BookingStatus, TimelineActor
 from app.modules.chat import service as chat
+from app.modules.notifications import service as notifications
+from app.modules.notifications.models import NotificationType
 from app.modules.payments import repository
 from app.modules.payments import service as payments
 from app.modules.payments.models import (
@@ -360,8 +362,20 @@ class Reconciler:
             escrow = await repository.escrow(session, escrow_id, for_update=True)
             assert escrow is not None
             if reason.startswith("FAILED_VERIFICATION"):
+                first = escrow.verification_error is None
                 escrow.verification_error = reason
                 await payments.refresh_reconciliation(session, escrow)
+                if first:
+                    await notifications.notify_admins(
+                        session,
+                        NotificationType.CHAIN_VERIFICATION_FAILED,
+                        title="Escrow failed verification",
+                        body="An on-chain escrow does not match its agreed terms. The booking was not funded;"
+                        " review it in the admin console.",
+                        href="/admin",
+                        data={"escrow_id": str(escrow.id), "booking_id": str(escrow.booking_id)},
+                        now=self.services.clock.now(),
+                    )
             await audit.record(
                 session,
                 action="chain.event_conflict",

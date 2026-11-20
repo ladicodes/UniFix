@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from app.modules.admin.router import router as admin_router
 from app.modules.auth.router import router as auth_router
 from app.modules.bookings import service as bookings_service
 from app.modules.bookings.router import router as bookings_router
@@ -16,6 +17,7 @@ from app.modules.completion import service as completion_service
 from app.modules.completion.router import router as completion_router
 from app.modules.disputes import service as disputes_service
 from app.modules.disputes.router import router as disputes_router
+from app.modules.notifications.router import router as notifications_router
 from app.modules.payments import reconciler
 from app.modules.payments import service as payments_service
 from app.modules.payments.router import router as payments_router
@@ -49,6 +51,8 @@ for module_router in (
     completion_router,
     disputes_router,
     reviews_router,
+    notifications_router,
+    admin_router,
 ):
     router.include_router(module_router)
 
@@ -72,4 +76,7 @@ payments_service.register_dispute_guard(disputes_service.has_active_dispute)
 reconciler.register_dispute_hook("disputed", disputes_service.on_locked)
 reconciler.register_dispute_hook("settled", disputes_service.on_settled)
 reconciler.register_periodic(disputes_service.escalate_overdue)
+# Notifications (Issue 8): 24 h deadline warnings and dispute SLA reminders, sent once each.
+reconciler.register_periodic(payments_service.warn_deadlines)
+reconciler.register_periodic(disputes_service.remind_sla)
 upload_policy.register_read_rule(FilePurpose.DISPUTE_EVIDENCE, disputes_service.can_read_evidence)

@@ -439,6 +439,8 @@ Post-MVP: multisig admin and arbiter; live FX.
 
 Deployed with `uv run python -m scripts.testnet deploy` (throwaway Friendbot-funded keys; the record and keys stay in the gitignored `var/testnet/deployment.json`).
 
+> **Superseded.** The contract IDs below are the first deployment (2026-11-17). The current deployment (2026-11-19: `usdc` `CDSJEO4U4MQRXY7KZDFV5HOBSIPIPIYGEOV7N7S5IMWFZ6BRQ7DMIH3I`, `test` `CAZBLH7JPO3ZRQKLZOVQ5FD3LLCEJ6D5ZF7JB5Y7ZRMEEK7US5RWEB4A`, `short` `CBQFW6CMYERMHHH4SH6FC43Q37X6QMZW64OWQWDGENB44GBEJQBIWKF5`; production wasm `39d31914a132fc9dd5ec0b5683c6261c461a37441a088bff326b3363cbeaca5a`) is listed in the root `README.md`.
+
 | Deployment | Contract ID | Token | Purpose |
 |---|---|---|---|
 | `usdc` | `CD5ARDVPAQ26SL7BZHLOKAG2T4CBAAQN47Y2QEPX2KEGSJZYAX2JQVHG` | Circle testnet USDC (`CBIELTK6…DAMA`) | Frontend demos; startup asset check passes against it |

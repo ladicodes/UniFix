@@ -109,6 +109,7 @@ def make_settings(database_url: str, **overrides: object) -> Settings:
         "password_hash_parallelism": 1,
         "auth_ip_rate_limit_per_minute": 10_000,
         "email_action_rate_limit_per_hour": 10_000,
+        "user_write_rate_limit_per_minute": 10_000,
         "frontend_base_url": ALLOWED_ORIGIN,
         "local_storage_dir": str(BACKEND_DIR / "var" / "test-uploads"),
         "upload_rate_limit_per_hour": 10_000,

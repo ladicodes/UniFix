@@ -23,6 +23,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from stellar_sdk import TransactionEnvelope
@@ -36,6 +37,8 @@ from app.modules.auth.context import AuthContext
 from app.modules.bookings import service as bookings
 from app.modules.bookings.models import Booking, BookingStatus, TimelineActor
 from app.modules.chat import service as chat
+from app.modules.notifications import service as notifications
+from app.modules.notifications.models import NotificationType
 from app.modules.payments import fx, repository, terms
 from app.modules.payments.models import (
     CancellationRequest,
@@ -864,6 +867,16 @@ async def request_cancellation(
         "The customer asked to cancel. The professional can accept by refunding, or decline.",
         now=now,
     )
+    await notifications.notify(
+        session,
+        await bookings.professional_user_id(session, booking),
+        NotificationType.CANCELLATION_REQUESTED,
+        title="Cancellation requested",
+        body=f"The customer asked to cancel '{booking.title}'. Refund to accept, or decline.",
+        href=f"/bookings/{booking.id}",
+        data={"booking_id": str(booking.id), "request_id": str(row.id)},
+        now=now,
+    )
     await session.commit()
     return cancellation_out(row)
 
@@ -892,6 +905,17 @@ async def decline_cancellation(
         actor_user_id=caller.user_id,
         now=now,
         data={"reason": reason},
+    )
+    booking = participant.booking
+    await notifications.notify(
+        session,
+        booking.customer_id,
+        NotificationType.CANCELLATION_DECLINED,
+        title="Cancellation declined",
+        body=f"The professional declined to cancel '{booking.title}': {reason}",
+        href=f"/bookings/{booking.id}",
+        data={"booking_id": str(booking.id), "request_id": str(row.id)},
+        now=now,
     )
     await session.commit()
     return cancellation_out(row)
@@ -943,3 +967,71 @@ async def receipts(
 def terms_document(escrow: Escrow) -> dict[str, Any]:
     document: dict[str, Any] = json.loads(escrow.terms_canonical_json)
     return document
+
+
+# ---------------------------------------------------------------- deadline warnings (Issue 8)
+
+DEADLINE_WARNING_LEAD = timedelta(hours=24)
+
+
+async def warn_deadlines(services: Services) -> int:
+    """Warn both parties 24 h before ``refund_after`` (Funded) and ``review_deadline`` (CompletionSubmitted).
+
+    Idempotent: the dedupe key includes the deadline, so a warning is sent once per deadline and an
+    extension produces a fresh warning for the new date.
+    """
+    now = services.clock.now()
+    start, end = int(now.timestamp()), int((now + DEADLINE_WARNING_LEAD).timestamp())
+    due = 0
+    async with services.session_factory() as session:
+        rows = (
+            await session.execute(
+                select(Escrow, Booking)
+                .join(Booking, Booking.id == Escrow.booking_id)
+                .where(
+                    or_(
+                        and_(
+                            Escrow.state == EscrowState.FUNDED.value, Escrow.refund_after.between(start, end)
+                        ),
+                        and_(
+                            Escrow.state == EscrowState.COMPLETION_SUBMITTED.value,
+                            Escrow.review_deadline.between(start, end),
+                        ),
+                    )
+                )
+            )
+        ).all()
+        for escrow, booking in rows:
+            professional = await bookings.professional_user_id(session, booking)
+            if escrow.state == EscrowState.FUNDED.value:
+                deadline, which = escrow.refund_after, "refund_after"
+                bodies = {
+                    booking.customer_id: f"'{booking.title}' refunds to you automatically within 24 hours "
+                    "unless completion is submitted. You can extend the deadline.",
+                    professional: f"Submit completion for '{booking.title}' within 24 hours, or the "
+                    "escrow refunds to the customer.",
+                }
+            else:
+                assert escrow.review_deadline is not None
+                deadline, which = escrow.review_deadline, "review_deadline"
+                bodies = {
+                    booking.customer_id: f"The payment for '{booking.title}' releases automatically "
+                    "within 24 hours unless you open a dispute.",
+                    professional: f"The review window for '{booking.title}' ends within 24 hours; "
+                    "the payment then releases to you.",
+                }
+            for user_id, body in bodies.items():
+                await notifications.notify(
+                    session,
+                    user_id,
+                    NotificationType.DEADLINE_APPROACHING,
+                    title="Deadline in 24 hours",
+                    body=body,
+                    href=f"/bookings/{booking.id}",
+                    data={"booking_id": str(booking.id), "deadline": deadline, "kind": which.upper()},
+                    dedupe_key=f"deadline:{escrow.id}:{which}:{deadline}",
+                    now=now,
+                )
+            due += 1
+        await session.commit()
+    return due

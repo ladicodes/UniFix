@@ -12,9 +12,9 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,7 @@ from app.modules.audit import service as audit
 from app.modules.audit.models import ActorType
 from app.modules.auth.context import AuthContext
 from app.modules.bookings import service as bookings
-from app.modules.bookings.models import BookingStatus, TimelineActor
+from app.modules.bookings.models import Booking, BookingStatus, TimelineActor
 from app.modules.chat import service as chat
 from app.modules.completion import service as completion
 from app.modules.disputes.models import (
@@ -45,6 +45,8 @@ from app.modules.disputes.schemas import (
     ResolveIn,
     SlaOut,
 )
+from app.modules.notifications import service as notifications
+from app.modules.notifications.models import NotificationType
 from app.modules.payments import repository as payments_repository
 from app.modules.payments import service as payments
 from app.modules.payments.models import Escrow, EscrowState, TxKind
@@ -64,6 +66,43 @@ EVIDENCE_WINDOW = timedelta(hours=72)
 DECISION_WINDOW = timedelta(days=7)
 ESCALATIONS = (timedelta(days=7), timedelta(days=14))  # STELLAR_ESCROW_DESIGN §4.5 stages 3 and 4
 _ACTIVE = [s.value for s in ACTIVE_DISPUTE]
+SLA_REMINDER_LEAD = timedelta(hours=24)
+
+
+async def _parties(session: AsyncSession, booking: Booking) -> list[uuid.UUID]:
+    return [booking.customer_id, await bookings.professional_user_id(session, booking)]
+
+
+async def _announce(
+    session: AsyncSession,
+    booking: Booking,
+    dispute: Dispute,
+    kind: NotificationType,
+    *,
+    title: str,
+    body: str,
+    now: datetime,
+    recipients: list[uuid.UUID] | None = None,
+    admins: bool = False,
+    dedupe_key: str | None = None,
+) -> None:
+    data = {"booking_id": str(booking.id), "dispute_id": str(dispute.id)}
+    parties = await _parties(session, booking) if recipients is None else recipients
+    await notifications.notify_many(
+        session,
+        parties,
+        kind,
+        title=title,
+        body=body,
+        href=f"/bookings/{booking.id}",
+        data=data,
+        now=now,
+        dedupe_key=dedupe_key,
+    )
+    if admins:
+        await notifications.notify_admins(
+            session, kind, title=title, body=body, href="/admin", data=data, now=now, dedupe_key=dedupe_key
+        )
 
 
 def split_amount(asset_units: int, bps: int) -> int:
@@ -278,6 +317,16 @@ async def open_dispute(
         session, booking.conversation_id,
         "A dispute was opened. Release and refund are paused while it is locked on-chain.", now=now,
     )  # fmt: skip
+    await _announce(
+        session,
+        booking,
+        dispute,
+        NotificationType.DISPUTE_OPENED,
+        title="Dispute opened",
+        body=f"A dispute was opened on '{booking.title}'. Release and refund are paused.",
+        now=now,
+        recipients=[u for u in (booking.customer_id, professional_user_id) if u != caller.user_id],
+    )
     await audit.record(
         session, action="dispute.opened", entity_type="booking", entity_id=booking.id,
         actor_user_id=caller.user_id, data={"dispute_id": str(dispute.id), "reason": data.reason.value},
@@ -486,6 +535,17 @@ async def on_locked(session: AsyncSession, c: ApplyContext) -> None:
     dispute.decision_due_at = c.now + DECISION_WINDOW
     await session.flush()
     await completion.on_disputed(session, c.booking.id, c.now)
+    await _announce(
+        session,
+        c.booking,
+        dispute,
+        NotificationType.DISPUTE_LOCKED,
+        title="Dispute locked on-chain",
+        body=f"The escrow for '{c.booking.title}' is locked. Add evidence within 72 hours; "
+        "an arbiter decides the outcome.",
+        now=c.now,
+        admins=True,
+    )
     await audit.record(
         session, action="dispute.locked", entity_type="dispute", entity_id=dispute.id, actor_user_id=None,
         actor_type=ActorType.SYSTEM, data={"tx_hash": c.event.tx_hash},
@@ -524,6 +584,16 @@ async def on_settled(session: AsyncSession, c: ApplyContext) -> None:
     if outcome is not DisputeOutcome.SPLIT:
         dispute.split_bps_to_professional = None
     dispute.status, dispute.outcome, dispute.resolved_at = DisputeStatus.RESOLVED.value, outcome.value, c.now
+    await _announce(
+        session,
+        c.booking,
+        dispute,
+        NotificationType.DISPUTE_RESOLVED,
+        title="Dispute resolved",
+        body=f"The dispute on '{c.booking.title}' was settled on-chain "
+        f"({outcome.value.replace('_', ' ').lower()}).",
+        now=c.now,
+    )
     await audit.record(
         session, action="dispute.resolved", entity_type="dispute", entity_id=dispute.id, actor_user_id=None,
         actor_type=ActorType.SYSTEM,
@@ -579,5 +649,75 @@ def register_escalation_listener(listener: EscalationListener) -> None:
 
 
 async def _notify_escalation(session: AsyncSession, dispute: Dispute, level: int) -> None:
+    booking = await session.get(Booking, dispute.booking_id)
+    assert booking is not None
+    await _announce(
+        session,
+        booking,
+        dispute,
+        NotificationType.DISPUTE_ESCALATED,
+        title=f"Dispute escalated (level {level})",
+        body=f"The dispute on '{booking.title}' is past its decision SLA and was escalated.",
+        now=dispute.escalated_at or booking.updated_at,
+        admins=True,
+    )
     if _escalation_listener is not None:
         await _escalation_listener(session, dispute, level)
+
+
+async def remind_sla(services: Services) -> int:
+    """24 h before the evidence window closes (parties) and before the decision is due (admins).
+
+    Idempotent: each reminder has a dedupe key, so repeated ticks send it once.
+    """
+    now = services.clock.now()
+    due = 0
+    async with services.session_factory() as session:
+        rows = (
+            await session.execute(
+                select(Dispute, Booking)
+                .join(Booking, Booking.id == Dispute.booking_id)
+                .where(
+                    Dispute.status.in_(
+                        [DisputeStatus.UNDER_REVIEW.value, DisputeStatus.AWAITING_SETTLEMENT.value]
+                    ),
+                    or_(
+                        Dispute.evidence_closes_at.between(now, now + SLA_REMINDER_LEAD),
+                        Dispute.decision_due_at.between(now, now + SLA_REMINDER_LEAD),
+                    ),
+                )
+            )
+        ).all()
+        for dispute, booking in rows:
+            if (
+                dispute.evidence_closes_at is not None
+                and now <= dispute.evidence_closes_at <= now + SLA_REMINDER_LEAD
+            ):
+                await _announce(
+                    session,
+                    booking,
+                    dispute,
+                    NotificationType.DISPUTE_SLA_REMINDER,
+                    title="Evidence closes soon",
+                    body=f"Evidence for the dispute on '{booking.title}' closes within 24 hours.",
+                    now=now,
+                    dedupe_key=f"dispute:{dispute.id}:evidence",
+                )
+                due += 1
+            if (
+                dispute.decision_due_at is not None
+                and now <= dispute.decision_due_at <= now + SLA_REMINDER_LEAD
+            ):
+                await notifications.notify_admins(
+                    session,
+                    NotificationType.DISPUTE_SLA_REMINDER,
+                    title="Dispute decision due",
+                    body=f"A decision on the dispute for '{booking.title}' is due within 24 hours.",
+                    href="/admin",
+                    data={"dispute_id": str(dispute.id)},
+                    now=now,
+                    dedupe_key=f"dispute:{dispute.id}:decision",
+                )
+                due += 1
+        await session.commit()
+    return due

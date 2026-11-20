@@ -19,6 +19,8 @@ from app.modules.auth.context import AuthContext
 from app.modules.campuses import service as campuses
 from app.modules.campuses.schemas import CampusSummary
 from app.modules.catalog import service as catalog
+from app.modules.notifications import service as notifications
+from app.modules.notifications.models import NotificationType
 from app.modules.professionals import repository
 from app.modules.professionals.models import (
     Availability,
@@ -606,6 +608,20 @@ async def decide_verification(
     check.rejection_reason = data.reason if data.decision is CheckStatus.REJECTED else None
     await session.flush()
     await _refresh_status(session, profile)
+    approved = data.decision is not CheckStatus.REJECTED
+    label = check.type.replace("_", " ").lower()
+    await notifications.notify(
+        session,
+        profile.user_id,
+        NotificationType.VERIFICATION_APPROVED if approved else NotificationType.VERIFICATION_REJECTED,
+        title="Verification approved" if approved else "Verification rejected",
+        body=f"Your {label} check was approved."
+        if approved
+        else f"Your {label} check was rejected: {data.reason or 'see your profile for details'}.",
+        href="/profile",
+        data={"type": check.type, "decision": check.status},
+        now=check.reviewed_at,
+    )
     await audit.record(
         session,
         action="admin.verification_decided",

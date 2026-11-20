@@ -24,6 +24,9 @@ _REDACTIONS: tuple[tuple[re.Pattern[str], str], ...] = (
         r'"\1": "[REDACTED]"',
     ),
     (re.compile(r"(?i)((?:__Secure-)?unifix_rt=)[^;\s]+"), r"\1[REDACTED]"),
+    # Stellar secret seeds (S + 55 base32 characters), e.g. a mis-logged operator key.
+    (re.compile(r"\bS[A-Z2-7]{55}\b"), "[REDACTED]"),
+    (re.compile(r'(?i)"([a-z_]*secret[a-z_]*)"\s*:\s*"[^"]*"'), r'"\1": "[REDACTED]"'),
 )
 
 

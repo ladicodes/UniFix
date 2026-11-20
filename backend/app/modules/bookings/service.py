@@ -33,6 +33,8 @@ from app.modules.bookings.schemas import (
 )
 from app.modules.chat import service as chat
 from app.modules.chat.hub import ConversationHub
+from app.modules.notifications import service as notifications
+from app.modules.notifications.models import NotificationType
 from app.modules.professionals import repository as professionals_repository
 from app.modules.professionals import service as professionals
 from app.modules.professionals.repository import SearchRow
@@ -134,6 +136,81 @@ async def transition(
         if actor in {TimelineActor.SYSTEM, TimelineActor.CHAIN}
         else ActorType.USER,
         data={"from": current.value, "to": to.value},
+    )
+    await _notify_transition(session, booking, to, actor=actor, actor_user_id=actor_user_id, now=now)
+
+
+# (type, title, body, recipients): recipients are "customer", "professional" or "other" (the party
+# that did not make a user-initiated transition).
+_TRANSITION_NOTICES: dict[BookingStatus, tuple[NotificationType, str, str, str]] = {
+    BookingStatus.FUNDED: (
+        NotificationType.BOOKING_FUNDED,
+        "Booking funded",
+        "Payment for '{title}' is locked in escrow on Stellar.",
+        "both",
+    ),
+    BookingStatus.IN_PROGRESS: (
+        NotificationType.JOB_STARTED,
+        "Job started",
+        "Work on '{title}' has started.",
+        "customer",
+    ),
+    BookingStatus.COMPLETION_SUBMITTED: (
+        NotificationType.COMPLETION_SUBMITTED,
+        "Completion submitted",
+        "The professional marked '{title}' complete. Review it and release the payment.",
+        "customer",
+    ),
+    BookingStatus.COMPLETED: (
+        NotificationType.PAYMENT_RELEASED,
+        "Payment released",
+        "The escrow for '{title}' was released to the professional.",
+        "both",
+    ),
+    BookingStatus.REFUNDED: (
+        NotificationType.PAYMENT_REFUNDED,
+        "Payment refunded",
+        "The escrow for '{title}' was refunded to the customer.",
+        "both",
+    ),
+    BookingStatus.CANCELLED: (
+        NotificationType.BOOKING_CANCELLED,
+        "Booking cancelled",
+        "The booking '{title}' was cancelled.",
+        "other",
+    ),
+}
+
+
+async def _notify_transition(
+    session: AsyncSession,
+    booking: Booking,
+    to: BookingStatus,
+    *,
+    actor: TimelineActor,
+    actor_user_id: uuid.UUID | None,
+    now: datetime,
+) -> None:
+    notice = _TRANSITION_NOTICES.get(to)
+    if notice is None:  # DISPUTED / RESOLVED are announced by the disputes module
+        return
+    kind, title, body, audience = notice
+    professional = await professional_user_id(session, booking)
+    recipients = {
+        "both": [booking.customer_id, professional],
+        "customer": [booking.customer_id],
+        "professional": [professional],
+        "other": [u for u in (booking.customer_id, professional) if u != actor_user_id],
+    }[audience]
+    await notifications.notify_many(
+        session,
+        recipients,
+        kind,
+        title=title,
+        body=body.format(title=booking.title),
+        href=f"/bookings/{booking.id}",
+        data={"booking_id": str(booking.id), "status": to.value},
+        now=now,
     )
 
 
@@ -262,6 +339,16 @@ async def accept_quote(
         session,
         quote.conversation_id,
         f"Quote v{quote.version} accepted. Booking created; awaiting payment.",
+        now=now,
+    )
+    await notifications.notify(
+        session,
+        await professional_user_id(session, booking),
+        NotificationType.QUOTE_ACCEPTED,
+        title="Quote accepted",
+        body=f"Your quote for '{quote.title}' was accepted.",
+        href=f"/bookings/{booking.id}",
+        data={"booking_id": str(booking.id), "quote_id": str(quote.id)},
         now=now,
     )
     await audit.record(

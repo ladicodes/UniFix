@@ -15,7 +15,7 @@ from app.core.config import API_PREFIX, Settings, get_settings
 from app.core.container import Services, build_services
 from app.core.errors import register_error_handlers
 from app.core.logging import configure_logging
-from app.core.middleware import RequestContextMiddleware
+from app.core.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
 from app.modules.bookings import service as bookings_service
 from app.modules.chat import service as chat_service
 from app.modules.chat.hub import ConversationHub
@@ -65,8 +65,8 @@ def create_app(
         title=settings.app_name,
         version="0.1.0",
         summary="UniFix marketplace API",
-        openapi_url=f"{API_PREFIX}/openapi.json",
-        docs_url=f"{API_PREFIX}/docs",
+        openapi_url=f"{API_PREFIX}/openapi.json" if settings.api_docs_enabled else None,
+        docs_url=f"{API_PREFIX}/docs" if settings.api_docs_enabled else None,
         redoc_url=None,
         lifespan=lifespan,
     )
@@ -97,7 +97,15 @@ def create_app(
     register_error_handlers(app)
 
     # Order: CORS must wrap everything so even error responses carry CORS headers for allowed origins.
-    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        default_limit=settings.max_request_body_bytes,
+        upload_limit=settings.max_upload_body_bytes,
+        upload_path=f"{API_PREFIX}/uploads",
+    )
+    app.add_middleware(
+        RequestContextMiddleware, hsts=settings.is_production, docs_prefix=f"{API_PREFIX}/docs"
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

@@ -10,6 +10,7 @@ from app.modules.catalog.models import ServiceCategory
 from app.modules.chat.models import Conversation, ConversationMember, Message, Report, WebSocketTicket
 from app.modules.completion.models import CompletionFile, CompletionSubmission
 from app.modules.disputes.models import Dispute, DisputeEvidence
+from app.modules.notifications.models import Notification
 from app.modules.payments.models import (
     CancellationRequest,
     ChainEvent,
@@ -50,6 +51,7 @@ __all__ = [
     "IdempotencyKey",
     "LedgerEntry",
     "Message",
+    "Notification",
     "PortfolioItem",
     "ProfessionalProfile",
     "ProfessionalVerification",

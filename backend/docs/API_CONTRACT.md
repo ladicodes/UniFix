@@ -1,7 +1,7 @@
 # UniFix API Contract (for the frontend)
 
 Audience: Victor (frontend). You should not need to read backend code to integrate.
-Status: **Revision 3 (2026-11-17).** §1–§7 are **implemented** (Batch 1: Issues #1, #2, #4, #3). §8 onward is Batch 2 and remains the planned contract. Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
+Status: **Revision 3 (2026-11-17), updated 2026-11-19.** §1–§7 are **implemented** (Batch 1: Issues #1, #2, #4, #3). §8–§10 are implemented by Issues #5–#7, and §11 by Issue #8. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
 
 Revision 3 changes:
 
@@ -528,13 +528,64 @@ Reviews are allowed on `COMPLETED` or `RESOLVED` bookings, by the booking's cust
 
 ## 11. Notifications and admin — Issue 8
 
-| Method | Path | Response |
+### 11.1 Notifications (any signed-in user; own notifications only)
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| GET | `/notifications` | `unread?` (`true` = unread only, `false` = read only), `limit`, `offset` | `AppNotification[]`, newest first, with `X-Total-Count` |
+| GET | `/notifications/unread-count` | — | `{count}` |
+| POST | `/notifications/read` | `{ids?: uuid[]}` (1–100 ids; omit `ids` to mark all read) | `204`. Ids that are not yours are ignored |
+
+`AppNotification = {id, user_id, type, title, body, href, created_at, read_at}`. `href` is a frontend
+path (`/bookings/{id}`, `/messages/{conversation_id}`, `/pros/{professional_id}`, `/profile`, `/admin`) or
+`null`. Delivery is by polling (`unread-count` every 30–60 s, or on focus); there is no push channel.
+
+| `type` | Recipient | When |
 |---|---|---|
-| GET | `/notifications` | `unread?, limit, offset` → `AppNotification[]` = `{id, user_id, type, title, body, href, created_at, read_at}` |
-| POST | `/notifications/read` | `{ids?}` → `204` |
-| GET | `/notifications/unread-count` | `{count}` |
-| GET | `/admin/users`, `/admin/bookings`, `/admin/escrows`, `/admin/service-requests`, `/admin/reports`, `/admin/audit-logs` | Filterable lists |
-| GET | `/admin/ops/status` | Reconciler and RPC health |
+| `MESSAGE_RECEIVED` | other conversation members | a user message; at most one unread notice per conversation |
+| `QUOTE_RECEIVED` | customer | a professional sends a quote |
+| `QUOTE_ACCEPTED` / `QUOTE_REJECTED` | professional | the customer accepts / declines |
+| `BOOKING_FUNDED` | both parties | funding confirmed on-chain |
+| `BOOKING_CANCELLED` | the other party (both if the system cancelled) | a pending booking is cancelled |
+| `JOB_STARTED` | customer | the professional starts |
+| `COMPLETION_SUBMITTED` | customer | completion confirmed on-chain |
+| `PAYMENT_RELEASED` / `PAYMENT_REFUNDED` | both parties | release / refund confirmed on-chain |
+| `DEADLINE_APPROACHING` | both parties | 24 h before `refund_after` (Funded) or `review_deadline` (CompletionSubmitted); once per deadline |
+| `CANCELLATION_REQUESTED` / `CANCELLATION_DECLINED` | professional / customer | cancellation request opened / declined |
+| `DISPUTE_OPENED` | the other party | a dispute record is created |
+| `DISPUTE_LOCKED` | both parties and admins | the on-chain lock is confirmed |
+| `DISPUTE_RESOLVED` | both parties | the settlement of a locked dispute is confirmed |
+| `DISPUTE_SLA_REMINDER` | parties (evidence closes in 24 h) / admins (decision due in 24 h) | once each |
+| `DISPUTE_ESCALATED` | both parties and admins | escalation level 1 (day 7) and 2 (day 14) |
+| `REVIEW_RECEIVED` | professional | a review is published |
+| `VERIFICATION_APPROVED` / `VERIFICATION_REJECTED` | professional | an admin decides a verification check |
+| `ACCOUNT_SUSPENDED` | the user | an admin suspends the account |
+| `CHAIN_VERIFICATION_FAILED` | admins | an on-chain escrow does not match its agreed terms (`FAILED_VERIFICATION`) |
+
+Notifications are written in the same transaction as the event, so a failed action leaves none behind.
+
+### 11.2 Admin console (ADMIN role; every list paginated with `X-Total-Count`)
+
+| Method | Path | Filters | Response |
+|---|---|---|---|
+| GET | `/admin/users` | `q` (email or name contains, ≥ 2 chars), `role`, `status` | `AdminUser[]` |
+| GET | `/admin/users/{id}` | — | `AdminUser` + `professional_id`, `verification_status`, `wallets[]`, `active_sessions`, `bookings_as_customer`, `bookings_as_professional`, `reports_filed`, `reports_against` |
+| GET | `/admin/bookings` | `status`, `customer_id`, `professional_id` | `AdminBooking[]` (with `escrow_id`, `escrow_state`) |
+| GET | `/admin/escrows` | `state`, `reconciliation`, `failed_verification` (bool) | `AdminEscrow[]` (`asset_amount` string, `verification_error`, `failure_reason`, deadlines) |
+| GET | `/admin/chain-transactions` | `escrow_id`, `status`, `kind` | `AdminChainTx[]` (hash, status, ledger, error, `explorer_url`; never XDR) |
+| GET | `/admin/service-requests` | `status`, `category_id`, `customer_id` | `AdminServiceRequest[]` |
+| GET | `/admin/reports` | `status` (`OPEN`/`ACTIONED`/`DISMISSED`), `target_type` (`MESSAGE`/`CONVERSATION`/`USER`/`REVIEW`) | `AdminReport[]` |
+| POST | `/admin/reports/{id}/resolve` | `{decision: ACTIONED \| DISMISSED, note}` | `AdminReport`; `409 REPORT_NOT_OPEN` if already resolved. Audited; content is not deleted (review moderation is `POST /admin/reviews/{id}/moderate`) |
+| GET | `/admin/audit-logs` | `action`, `entity_type`, `entity_id`, `actor_user_id`, `since`, `until` | `AdminAuditLog[]` |
+| GET | `/admin/ops/status` | — | `{checked_at, pending_tx_count, awaiting_signature_count, oldest_pending_age_seconds, failed_verification_count, conflict_event_count, unapplied_event_count, open_disputes, open_reports, rpc: {configured, healthy, latest_ledger, oldest_ledger, error}, reconciler: {enabled, last_ledger, cursor_lag_ledgers, leader_instance, leader_since, last_error, last_error_at, updated_at}}` |
+
+Admin responses never include password hashes, token hashes, secrets, escrow keys or transaction XDR.
+
+### 11.3 Limits added in Issue 8
+
+- Request bodies: 1 MiB (`/uploads`: 11 MiB, then the per-purpose limits). Larger bodies get `413 PAYLOAD_TOO_LARGE`.
+- Every authenticated `POST`/`PATCH`/`PUT`/`DELETE` counts toward a per-user limit (120 per minute by default) → `429` with `Retry-After`.
+- In production, Swagger UI and `/api/v1/openapi.json` are disabled unless `EXPOSE_API_DOCS=true`; the committed `backend/openapi.json` is always current.
 
 ## 12. Local development (backend)
 

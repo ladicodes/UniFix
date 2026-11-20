@@ -18,6 +18,8 @@ from app.modules.auth.context import AuthContext
 from app.modules.chat import service as chat
 from app.modules.chat.hub import ConversationHub
 from app.modules.chat.models import MessageKind
+from app.modules.notifications import service as notifications
+from app.modules.notifications.models import NotificationType
 from app.modules.professionals import repository as professionals_repository
 from app.modules.quotes import repository
 from app.modules.quotes.models import Agreement, Quote, QuoteStatus
@@ -143,6 +145,16 @@ async def create(
         session, conversation.id, sender=caller, body=f"Quote v{quote.version}: {quote.title}",
         kind=MessageKind.QUOTE, now=now, quote_id=quote.id,
     )  # fmt: skip
+    await notifications.notify(
+        session,
+        quote.customer_id,
+        NotificationType.QUOTE_RECEIVED,
+        title="New quote",
+        body=f"{caller.user.full_name} sent a quote: {quote.title}.",
+        href=f"/messages/{conversation.id}",
+        data={"quote_id": str(quote.id), "conversation_id": str(conversation.id)},
+        now=now,
+    )
     await audit.record(
         session,
         action="quote.created",
@@ -185,6 +197,19 @@ async def _decide(
     now = services.clock.now()
     quote.status = to.value
     quote.responded_at = now
+    if to is QuoteStatus.REJECTED:
+        profile = await professionals_repository.get(session, quote.professional_id)
+        assert profile is not None
+        await notifications.notify(
+            session,
+            profile.user_id,
+            NotificationType.QUOTE_REJECTED,
+            title="Quote declined",
+            body=f"Your quote for '{quote.title}' was declined." + (f" Reason: {reason}" if reason else ""),
+            href=f"/messages/{quote.conversation_id}",
+            data={"quote_id": str(quote.id)},
+            now=now,
+        )
     await audit.record(
         session,
         action=f"quote.{to.value.lower()}",

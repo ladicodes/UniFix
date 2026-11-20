@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable, Coroutine
+from datetime import timedelta
 from typing import Annotated, Any
 
 from fastapi import Depends, Header, Request
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.container import Services
 from app.core.errors import Forbidden, Unauthorized
+from app.core.ratelimit import rate_limit_key
 from app.modules.auth import service as auth_service
 from app.modules.auth.context import AuthContext
 from app.modules.chat.hub import ConversationHub
@@ -48,9 +50,24 @@ async def optional_caller(
     return await auth_service.authenticate(session, services, credentials.credentials)
 
 
-async def current_caller(caller: Annotated[AuthContext | None, Depends(optional_caller)]) -> AuthContext:
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def current_caller(
+    request: Request,
+    services: ServicesDep,
+    caller: Annotated[AuthContext | None, Depends(optional_caller)],
+) -> AuthContext:
     if caller is None:
         raise Unauthorized("Authentication is required.", code="AUTH_REQUIRED")
+    if request.method not in _SAFE_METHODS:
+        await services.rate_limiter.hit(
+            bucket="user_writes",
+            key=rate_limit_key(str(caller.user_id)),
+            limit=services.settings.user_write_rate_limit_per_minute,
+            window=timedelta(minutes=1),
+            now=services.clock.now(),
+        )
     return caller
 
 

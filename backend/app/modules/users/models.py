@@ -37,6 +37,7 @@ class User(UUIDPrimaryKey, Timestamps, Base):
         CheckConstraint("char_length(full_name) BETWEEN 2 AND 120", name="full_name_length"),
         Index("uq_users_phone", "phone", unique=True, postgresql_where=text("phone IS NOT NULL")),
         Index("ix_users_role_status", "role", "status"),
+        Index("ix_users_created_at", "created_at"),
     )
 
     email: Mapped[str] = mapped_column(CITEXT, unique=True, nullable=False)
