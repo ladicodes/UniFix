@@ -47,6 +47,7 @@ from app.modules.chat.schemas import (
     ReportIn,
     SendMessageIn,
 )
+from app.modules.notifications import service as notifications
 from app.modules.professionals import repository as professionals_repository
 from app.modules.professionals import service as professionals
 from app.modules.professionals.repository import SearchRow
@@ -435,8 +436,16 @@ async def send_message(
     member.last_read_message_id = message.id
     member.last_read_at = now
     await _record_response_time(session, conversation, caller, message)
-    await session.commit()
     members = await repository.members(session, conversation_id)
+    await notifications.notify_message(
+        session,
+        [m.user_id for m in members if m.user_id != caller.user_id],
+        conversation_id=conversation_id,
+        sender_name=caller.user.full_name,
+        preview=_preview(message),
+        now=now,
+    )
+    await session.commit()
     out = (await messages_out(session, services, [message], members))[0]
     await hub.publish(
         conversation_id,
@@ -565,6 +574,28 @@ async def report(
         if message is None or message.conversation_id != conversation_id:
             raise BadRequest("Unknown message.", code="INVALID_MESSAGE")
         target_type, target_id = ReportTarget.MESSAGE, message.id
+    return await create_report(
+        session,
+        caller,
+        target_type=target_type,
+        target_id=target_id,
+        conversation_id=conversation_id,
+        reason=data.reason,
+        details=data.details,
+    )
+
+
+async def create_report(
+    session: AsyncSession,
+    caller: AuthContext,
+    *,
+    target_type: ReportTarget,
+    target_id: uuid.UUID,
+    conversation_id: uuid.UUID | None,
+    reason: str,
+    details: str | None,
+) -> Report:
+    """One report per (reporter, target); reused for reviews (Issue 7)."""
     if await repository.find_report(session, caller.user_id, target_type.value, target_id):
         raise Conflict("You have already reported this.", code="ALREADY_REPORTED")
     row = Report(
@@ -572,8 +603,8 @@ async def report(
         target_type=target_type.value,
         target_id=target_id,
         conversation_id=conversation_id,
-        reason=data.reason,
-        details=data.details,
+        reason=reason,
+        details=details,
     )
     repository.add(session, row)
     try:
@@ -585,11 +616,11 @@ async def report(
         raise
     await audit.record(
         session,
-        action="chat.reported",
+        action=f"{target_type.value.lower()}.reported",
         entity_type=target_type.value.lower(),
         entity_id=target_id,
         actor_user_id=caller.user_id,
-        data={"reason": data.reason},
+        data={"reason": reason},
     )
     await session.commit()
     await session.refresh(row)

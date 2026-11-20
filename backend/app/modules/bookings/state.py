@@ -32,6 +32,10 @@ TRANSITIONS: dict[tuple[S, S], Rule] = {
     (S.IN_PROGRESS, S.REFUNDED): Rule(_CHAIN, None),
     (S.COMPLETION_SUBMITTED, S.REFUNDED): Rule(_CHAIN, None),
     (S.COMPLETION_SUBMITTED, S.COMPLETED): Rule(_CHAIN, None),
+    # The contract lets the customer release before completion is submitted (e.g. from another
+    # wallet tool); the mirror must follow the chain.
+    (S.FUNDED, S.COMPLETED): Rule(_CHAIN, None),
+    (S.IN_PROGRESS, S.COMPLETED): Rule(_CHAIN, None),
     (S.FUNDED, S.DISPUTED): Rule(_CHAIN, None),
     (S.IN_PROGRESS, S.DISPUTED): Rule(_CHAIN, None),
     (S.COMPLETION_SUBMITTED, S.DISPUTED): Rule(_CHAIN, None),

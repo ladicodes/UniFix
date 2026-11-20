@@ -7,23 +7,28 @@ truncated after each test so tests stay independent.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, text
+from stellar_sdk import Keypair
 
 from app.core.clock import FrozenClock
 from app.core.config import Environment, Settings
 from app.core.container import Services, build_services
 from app.main import create_app
+from app.modules.stellar.context import StellarContext
 from app.seed import seed
+from tests.chain import FakeChain, contract_strkey
 from tests.support import ALLOWED_ORIGIN, API_BASE_URL, RecordingEmailSender
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -82,6 +87,12 @@ def table_names(migrated_database: str) -> list[str]:
     return names
 
 
+# Throwaway keys for the in-memory chain double only (never used on any network).
+OPERATOR = Keypair.from_raw_ed25519_seed(hashlib.sha256(b"unifix-test-operator").digest())
+ARBITER = Keypair.from_raw_ed25519_seed(hashlib.sha256(b"unifix-test-arbiter").digest())
+ESCROW_CONTRACT_ID = contract_strkey("unifix-test-escrow")
+
+
 def make_settings(database_url: str, **overrides: object) -> Settings:
     values: dict[str, object] = {
         "env": Environment.TEST,
@@ -98,9 +109,19 @@ def make_settings(database_url: str, **overrides: object) -> Settings:
         "password_hash_parallelism": 1,
         "auth_ip_rate_limit_per_minute": 10_000,
         "email_action_rate_limit_per_hour": 10_000,
+        "user_write_rate_limit_per_minute": 10_000,
         "frontend_base_url": ALLOWED_ORIGIN,
         "local_storage_dir": str(BACKEND_DIR / "var" / "test-uploads"),
         "upload_rate_limit_per_hour": 10_000,
+        "escrow_contract_id": ESCROW_CONTRACT_ID,
+        "escrow_id_secret": "test-escrow-id-secret-" + "y" * 20,
+        "stellar_operator_secret": OPERATOR.secret,
+        "stellar_operator_address": OPERATOR.public_key,
+        "stellar_check_on_startup": False,
+        "fx_demo_rate_ngn": "1650.00000000",
+        "fx_demo_rate_ghs": "15.50000000",
+        "wallet_challenge_rate_limit_per_hour": 10_000,
+        "reconciler_enabled": False,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[arg-type]
@@ -142,21 +163,42 @@ async def seeded(services: Services) -> Services:
 
 
 @pytest.fixture
-async def client(services: Services) -> AsyncIterator[httpx.AsyncClient]:
-    app = create_app(services.settings, services=services)
+def chain(settings: Settings, clock: FrozenClock) -> FakeChain:
+    """TEST DOUBLE for the Stellar network (see tests/chain.py)."""
+    fake = FakeChain(
+        clock=clock,
+        passphrase=settings.network_passphrase,
+        contract_id=ESCROW_CONTRACT_ID,
+        token_contract_id=settings.escrow_token_contract_id,
+        arbiter=ARBITER.public_key,
+        operator=OPERATOR.public_key,
+        review_window=settings.escrow_review_window_seconds,
+    )
+    fake.create_account(OPERATOR.public_key)
+    return fake
+
+
+@pytest.fixture
+def stellar(settings: Settings, chain: FakeChain) -> StellarContext:
+    return StellarContext(settings=settings, gateway=chain)
+
+
+@pytest.fixture
+async def client(services: Services, stellar: StellarContext) -> AsyncIterator[httpx.AsyncClient]:
+    app = create_app(services.settings, services=services, stellar=stellar)
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url=API_BASE_URL) as http:
         yield http
 
 
 @pytest.fixture
-async def live_server(services: Services) -> AsyncIterator[str]:
+async def live_server(services: Services, stellar: StellarContext) -> AsyncIterator[str]:
     """A real uvicorn server (same event loop) for WebSocket tests. Yields its base URL."""
     import asyncio
 
     import uvicorn
 
-    app = create_app(services.settings, services=services)
+    app = create_app(services.settings, services=services, stellar=stellar)
     config = uvicorn.Config(
         app, host="127.0.0.1", port=0, log_level="warning", lifespan="off", ws="websockets-sansio"
     )
@@ -173,3 +215,12 @@ async def live_server(services: Services) -> AsyncIterator[str]:
 @pytest.fixture
 def unique_email() -> str:
     return f"user-{uuid.uuid4().hex[:12]}@example.com"
+
+
+@pytest.fixture
+def reconciler(services: Services, stellar: StellarContext) -> Any:
+    from app.modules.payments import service as payments_service
+    from app.modules.payments.reconciler import Reconciler
+
+    payments_service._send_backoff_seconds = 0  # TRY_AGAIN_LATER retries without real sleeps
+    return Reconciler(services, stellar)

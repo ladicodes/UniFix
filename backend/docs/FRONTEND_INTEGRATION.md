@@ -109,10 +109,12 @@ Every difference is listed in [API_CONTRACT.md §13](API_CONTRACT.md#13-frontend
 | Status | Items |
 |---|---|
 | Must change to work with Batch 1 | F1 base URL, F2 sessions, F3 idempotency keys, F4 categories, F5 campus, F6 portfolio, F7 `distance_km`, F8 uploads, F9 system messages, F10 `allowed_actions`, F11 statuses, F17 milestones, F18 email screens, F19 snake_case, F20 enum casing, F21 WebSocket tickets, F22 money fields |
-| Batch 2 (not callable yet) | F12–F16, F23–F26: escrow, completion, release, refund, disputes, reviews, deadlines, demo-rate label |
+| Batch 2 (callable once Issues #5–#8 merge) | F12–F16, F23–F26: escrow, completion, release, refund, disputes, reviews, deadlines, demo-rate label; notifications and the admin console (API_CONTRACT §11) |
 
 Batch 1 behaviour that differs from what `live.ts` assumes today:
 
 - `POST /conversations` is **customer-only**.
 - `listProfessionals` must send `min_rating` / `verified_only`; `minRating` / `verifiedOnly` are ignored.
-- `submitCompletion`, `prepareEscrow`, `submitFunding`, `releaseEscrow`, `openDispute`, `resolveDispute`, `listDisputes`, `submitReview`, notifications and wallets have **no backend routes yet** (Batch 2). Calling them returns `404`.
+- Escrow, completion, disputes, reviews and wallets follow API_CONTRACT §8–§10 (Issues #5–#7).
+- Notifications (Issue #8): poll `GET /notifications/unread-count`, list with `GET /notifications?unread=true`, mark read with `POST /notifications/read` (`{ids}` or `{}` for all). Map the backend fields to `AppNotification`: `created_at` → `at`, `read_at !== null` → `read`, `href` may be `null`. Type list: API_CONTRACT §11.1.
+- The admin page can use `/admin/users`, `/admin/bookings`, `/admin/escrows`, `/admin/chain-transactions`, `/admin/reports` (+ `/resolve`), `/admin/audit-logs` and `/admin/ops/status` (API_CONTRACT §11.2).

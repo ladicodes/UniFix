@@ -1,6 +1,6 @@
 # UniFix Backend
 
-FastAPI + PostgreSQL backend for UniFix, the university service marketplace. The Soroban escrow on Stellar testnet arrives in Batch 2.
+FastAPI + PostgreSQL backend for UniFix, the university service marketplace, with a Soroban escrow contract on Stellar testnet.
 
 | Document | Purpose |
 |---|---|
@@ -10,6 +10,8 @@ FastAPI + PostgreSQL backend for UniFix, the university service marketplace. The
 | [docs/DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md) | Tables, constraints, indexes, migration policy |
 | [docs/STELLAR_ESCROW_DESIGN.md](docs/STELLAR_ESCROW_DESIGN.md) | Escrow contract, trust model, payment flows |
 | [docs/DEVELOPMENT_PLAN.md](docs/DEVELOPMENT_PLAN.md) | The eight issues, order, branches, decisions, risks |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploying from scratch, configuration checks, backups, testnet-reset runbook |
+| [docs/SECURITY_REVIEW.md](docs/SECURITY_REVIEW.md) | Issue 8 security gate: risk re-check, OWASP API Top 10, open findings |
 | [openapi.json](openapi.json) | Generated OpenAPI schema (CI fails if it is stale) |
 
 ## Requirements
@@ -51,8 +53,26 @@ uv run python -m scripts.export_openapi --check
 uv run pytest -q                           # real PostgreSQL via TEST_DATABASE_URL; never SQLite
 ```
 
+Security checks (CI workflow `security`): `pip-audit` on `uv.lock`, `cargo audit` on the contract, and gitleaks over the full history.
+
+Real-testnet end-to-end suite (needs `scripts.testnet deploy` first): `uv run python -m scripts.e2e_testnet` runs every `@pytest.mark.testnet` test and writes `var/testnet/E2E_REPORT.md` with stellar.expert links.
+
 - The test suite **migrates and truncates** the database named in `TEST_DATABASE_URL`. It refuses to run unless the database name contains `test`.
 - After changing routes or schemas, regenerate the schema with `uv run python -m scripts.export_openapi` and commit `openapi.json`.
+
+## Stellar escrow (testnet)
+
+The Soroban contract lives in `contracts/escrow` (Rust, soroban-sdk 29). It needs the `wasm32v1-none` target and the Stellar CLI (`brew install stellar-cli`).
+
+```bash
+cd contracts && cargo test                        # contract unit + randomised invariant tests
+stellar contract build                            # production wasm
+stellar contract build --features short-windows   # test-only build (deadline bounds in minutes)
+cd .. && uv run python -m scripts.testnet deploy  # throwaway keys, test asset, three deployments
+uv run python -m scripts.testnet smoke            # every contract path on testnet, prints tx hashes
+```
+
+Set `ESCROW_CONTRACT_ID`, `ESCROW_ID_SECRET`, `STELLAR_OPERATOR_ADDRESS` and `STELLAR_OPERATOR_SECRET` to enable payments. At startup the API checks that the token contract matches `Asset(code, issuer)` and exists on the network, and that the contract's operator and review window match the configuration. Deployment details and smoke-run transactions are in STELLAR_ESCROW_DESIGN §13.
 
 ## Docker
 

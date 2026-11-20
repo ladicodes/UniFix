@@ -341,8 +341,9 @@ The reconciliation status is tracked separately: `AWAITING_SIGNATURE` → `PENDI
 ## 12. Observability and operations
 
 - JSON logs with request ID, user ID and route. A redaction filter removes `Authorization` and `Cookie`/`Set-Cookie` headers, `ticket` and `token` query parameters, `password`, `signed_xdr` and secrets.
-- `GET /health` checks the process only. `GET /ready` checks the DB and that Soroban RPC is reachable.
-- `GET /api/v1/admin/ops/status` (Issue 8) reports: pending-transaction count, age of the oldest pending transaction, reconciler cursor ledger versus the latest ledger, and the last reconciler error.
+- `GET /health` checks the process only. `GET /ready` checks the DB. Soroban RPC health is reported by `GET /api/v1/admin/ops/status`.
+- `GET /api/v1/admin/ops/status` (Issue 8) reports: pending-transaction count, age of the oldest pending transaction, reconciler cursor ledger versus the latest ledger, the last reconciler error, escrows that failed verification, conflicting events, RPC health, open disputes and reports.
+- In-app notifications (Issue 8) are written in the same transaction as their event; scheduled ones (24 h deadline warnings, dispute SLA reminders) run as idempotent reconciler periodic jobs with a per-user dedupe key.
 - An error-tracking provider such as Sentry is optional and needs approval. It is not wired by default.
 
 ## 13. Testing strategy
@@ -364,6 +365,6 @@ SQLite is never used. A test only counts as passed if it was actually executed.
 
 - **Container:** a multi-stage `Dockerfile` (uv install, non-root user, `uvicorn app.main:app`). `docker-compose.yml` runs `db` (postgres:16) + `api` for local parity.
 - **Startup:** `alembic upgrade head` runs as a release step, not on every boot. One instance (see §9).
-- **Target:** any container platform with managed PostgreSQL, such as Render, Railway or Fly.io. The choice is pending your approval.
+- **Target:** any container platform with managed PostgreSQL, such as Render, Railway or Fly.io. The choice is pending your approval. Step-by-step guide: [DEPLOYMENT.md](DEPLOYMENT.md).
 - **Secrets:** environment variables only (`JWT_SECRET`, `DATABASE_URL`, `STELLAR_OPERATOR_SECRET`, SMTP and S3 credentials). `.env.example` contains no real values. The operator secret is never logged, returned or stored in the database.
-- **Testnet caveat:** SDF resets Stellar testnet periodically. Contract deployment is scripted (`scripts/deploy_testnet.py`), and the contract ID lives in config, so redeploying is a five-minute job. Escrow rows from before a reset are marked by network epoch.
+- **Testnet caveat:** SDF resets Stellar testnet periodically. Contract deployment is scripted (`scripts/testnet.py deploy`; runbook in DEPLOYMENT.md §7), and the contract ID lives in config, so redeploying is a five-minute job. Escrow rows from before a reset are marked by network epoch.

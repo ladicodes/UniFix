@@ -1,7 +1,7 @@
 # UniFix API Contract (for the frontend)
 
 Audience: Victor (frontend). You should not need to read backend code to integrate.
-Status: **Revision 3 (2026-11-17).** §1–§7 are **implemented** (Batch 1: Issues #1, #2, #4, #3). §8 onward is Batch 2 and remains the planned contract. Later sections remain the planned contract until their issues land. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
+Status: **Revision 3 (2026-11-17), updated 2026-11-19.** §1–§7 are **implemented** (Batch 1: Issues #1, #2, #4, #3). §8–§10 are implemented by Issues #5–#7, and §11 by Issue #8. Each section names the issue that delivers it. Once an issue merges, the live OpenAPI schema at `/api/v1/openapi.json` (Swagger UI `/api/v1/docs`) is authoritative for that issue's endpoints, and this document is updated in the same PR.
 
 Revision 3 changes:
 
@@ -408,6 +408,8 @@ Implementation notes (Issue #3):
 
 ## 8. Wallets — Issue 5
 
+**Implemented.** Errors: `400 INVALID_WALLET_ADDRESS` (StrKey checksum), `400 CHALLENGE_INVALID` (expired, used, or issued for another user/address/network; a challenge is consumed by the first verification attempt), `400 INVALID_SIGNATURE`, `400 WALLET_ACCOUNT_NOT_FOUND` (fund the account with XLM first), `409 WALLET_IN_USE`, `409 WALLET_IN_ESCROW`, `429` (challenge rate limit), `503 CHAIN_UNAVAILABLE` / `503 ESCROW_NOT_CONFIGURED`. `User` gains `wallet_address` and `wallet_verified`. In `GET /wallets`, `account_exists` and `has_escrow_trustline` are `null` when Horizon is unreachable.
+
 | Method | Path | Body → Response |
 |---|---|---|
 | POST | `/wallets/challenge` | `{address}` → `{message, nonce, expires_at}` |
@@ -425,6 +427,15 @@ Flow:
 Both parties need a verified wallet before funding.
 
 ## 9. Escrow and payments — Issues 6 and 7
+
+**Issue 6 implemented** (funding, completion, release, refund, extend, cancellation requests, receipts; disputes and resolution arrive with Issue 7). Notes:
+
+- Release, refund and extend use one route each: an empty body (or `{new_refund_after}` for extend) prepares and returns `{escrow, unsigned_xdr, tx_hash, valid_until}`; `{signed_xdr}` submits and returns the `Escrow`. Funding submits at `POST /escrows/{id}/funding`; completion at `POST /bookings/{id}/completion/submit`.
+- Preparing again while a prepared transaction is still valid returns the same one. A transaction is valid for `ESCROW_TX_VALID_SECONDS` (300 s).
+- Errors: `400 TX_MISMATCH`, `409 TX_EXPIRED`, `409 TX_IN_FLIGHT`, `409 NOTHING_PREPARED`, `409 BOOKING_NOT_PAYABLE`, `409 ALREADY_FUNDED`, `409 WALLET_REQUIRED`, `409 PROFESSIONAL_WALLET_MISSING`, `409 WALLET_NO_TRUSTLINE`, `409 SAME_WALLET`, `409 FX_RATE_UNAVAILABLE`, `409 DEADLINE_TOO_FAR`, `409 RELEASE_NOT_ALLOWED`, `409 REFUND_NOT_ALLOWED`, `409 EXTEND_NOT_ALLOWED`, `400 INVALID_DEADLINE`, `409 FUNDING_IN_PROGRESS` (cancelling while a payment may land), `409 CANCELLATION_OPEN`, `403 EMAIL_NOT_VERIFIED`, `502 CONTRACT_<ERROR>` (the contract refused it in simulation, e.g. `CONTRACT_INVALID_STATE`), `502 CHAIN_REJECTED`, `503 CHAIN_UNAVAILABLE`, `503 ESCROW_NOT_CONFIGURED`. No state changes on any 4xx/5xx.
+- `GET /bookings/{id}/completion` returns the latest evidence (`evidence_json` is the exact canonical bytes behind `evidence_hash`). `Receipt` also carries `payload_json`, the exact bytes behind `payload_hash`.
+- `BookingBundle.escrow` is the `Escrow` below (or `null`). `allowed_actions` adds `FUND`, `SUBMIT_COMPLETION`, `APPROVE_RELEASE`, `REFUND`, `EXTEND_DEADLINE`, `REQUEST_CANCELLATION`, `DECLINE_CANCELLATION`; `CANCEL` disappears while a funding transaction is in flight.
+- `GET /bookings/{id}/agreement` adds `escrow_terms_json` and `terms_hash` once an escrow is prepared.
 
 Every chain action is **prepare → sign in Freighter → submit**. Keep polling `GET /bookings/{id}` while `escrow.reconciliation === "PENDING_CONFIRMATION"`.
 
@@ -481,6 +492,15 @@ Receipt = { id; number; kind: "FUNDING"|"RELEASE"|"REFUND"|"RESOLUTION"; booking
 
 ## 10. Completion, disputes, reviews — Issues 6 and 7
 
+**Issue 7 implemented.** Notes:
+
+- `POST /escrows/{id}/disputes` returns `201 {dispute, escrow, unsigned_xdr, tx_hash, valid_until}`; `POST /disputes/{id}/lock` with `{signed_xdr}` submits the lock, or with `{}` prepares it again. `POST /disputes/{id}/resolve` prepares with `{outcome, split_bps_to_professional?, note}` (outcome `RELEASE`, `REFUND` or `SPLIT`; `split_bps_to_professional` 1–9999, `SPLIT` only) and submits with `{signed_xdr}`.
+- Concessions use the Issue 6 routes while the escrow is `DISPUTED`: the customer's `POST /escrows/{id}/release`, the professional's `POST /escrows/{id}/refund`.
+- `DisputeBundle` = `{dispute, escrow, booking_title, customer_id, professional_id}`. `Dispute.locked_at` is added; `sla` dates are `null` until the lock confirms. `Dispute.status` `CLOSED` means the lock never landed and the escrow settled another way.
+- `BookingBundle.dispute` and `BookingBundle.review` are populated. New `allowed_actions`: `OPEN_DISPUTE`, `LOCK_DISPUTE`, `CONCEDE_RELEASE` (customer), `CONCEDE_REFUND` (professional), `REVIEW` (customer, when eligible).
+- Errors: `409 DISPUTE_OPEN`, `409 DISPUTE_EXISTS`, `409 DISPUTE_NOT_ALLOWED`, `409 DEADLINE_PASSED`, `409 DISPUTE_ALREADY_LOCKED`, `409 DISPUTE_NOT_LOCKED`, `409 DISPUTE_CLOSED`, `403 ARBITER_WALLET_REQUIRED`, `400 INVALID_SPLIT`, `400 INVALID_OUTCOME`, `409 REVIEW_NOT_ELIGIBLE`, `409 REVIEW_WINDOW_CLOSED`, `409 REVIEW_EXISTS`, `409 RESPONSE_EXISTS`, `409 REVIEW_NOT_PUBLISHED`, `409 REVIEW_REMOVED`, `409 ALREADY_REPORTED`.
+- `GET /professionals/{id}/reviews` is paginated (`X-Total-Count`). `ProfessionalOut.rating`, `review_count` and `rating_breakdown` are now live, recomputed from published reviews in the same transaction as each create, hide, restore and remove; the `BEST` sort uses them. `REMOVE` is final.
+
 | Method | Path | Who | Body → Response |
 |---|---|---|---|
 | POST | `/disputes/{id}/evidence` | party / admin | `{note, file_id?}` |
@@ -508,13 +528,64 @@ Reviews are allowed on `COMPLETED` or `RESOLVED` bookings, by the booking's cust
 
 ## 11. Notifications and admin — Issue 8
 
-| Method | Path | Response |
+### 11.1 Notifications (any signed-in user; own notifications only)
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| GET | `/notifications` | `unread?` (`true` = unread only, `false` = read only), `limit`, `offset` | `AppNotification[]`, newest first, with `X-Total-Count` |
+| GET | `/notifications/unread-count` | — | `{count}` |
+| POST | `/notifications/read` | `{ids?: uuid[]}` (1–100 ids; omit `ids` to mark all read) | `204`. Ids that are not yours are ignored |
+
+`AppNotification = {id, user_id, type, title, body, href, created_at, read_at}`. `href` is a frontend
+path (`/bookings/{id}`, `/messages/{conversation_id}`, `/pros/{professional_id}`, `/profile`, `/admin`) or
+`null`. Delivery is by polling (`unread-count` every 30–60 s, or on focus); there is no push channel.
+
+| `type` | Recipient | When |
 |---|---|---|
-| GET | `/notifications` | `unread?, limit, offset` → `AppNotification[]` = `{id, user_id, type, title, body, href, created_at, read_at}` |
-| POST | `/notifications/read` | `{ids?}` → `204` |
-| GET | `/notifications/unread-count` | `{count}` |
-| GET | `/admin/users`, `/admin/bookings`, `/admin/escrows`, `/admin/service-requests`, `/admin/reports`, `/admin/audit-logs` | Filterable lists |
-| GET | `/admin/ops/status` | Reconciler and RPC health |
+| `MESSAGE_RECEIVED` | other conversation members | a user message; at most one unread notice per conversation |
+| `QUOTE_RECEIVED` | customer | a professional sends a quote |
+| `QUOTE_ACCEPTED` / `QUOTE_REJECTED` | professional | the customer accepts / declines |
+| `BOOKING_FUNDED` | both parties | funding confirmed on-chain |
+| `BOOKING_CANCELLED` | the other party (both if the system cancelled) | a pending booking is cancelled |
+| `JOB_STARTED` | customer | the professional starts |
+| `COMPLETION_SUBMITTED` | customer | completion confirmed on-chain |
+| `PAYMENT_RELEASED` / `PAYMENT_REFUNDED` | both parties | release / refund confirmed on-chain |
+| `DEADLINE_APPROACHING` | both parties | 24 h before `refund_after` (Funded) or `review_deadline` (CompletionSubmitted); once per deadline |
+| `CANCELLATION_REQUESTED` / `CANCELLATION_DECLINED` | professional / customer | cancellation request opened / declined |
+| `DISPUTE_OPENED` | the other party | a dispute record is created |
+| `DISPUTE_LOCKED` | both parties and admins | the on-chain lock is confirmed |
+| `DISPUTE_RESOLVED` | both parties | the settlement of a locked dispute is confirmed |
+| `DISPUTE_SLA_REMINDER` | parties (evidence closes in 24 h) / admins (decision due in 24 h) | once each |
+| `DISPUTE_ESCALATED` | both parties and admins | escalation level 1 (day 7) and 2 (day 14) |
+| `REVIEW_RECEIVED` | professional | a review is published |
+| `VERIFICATION_APPROVED` / `VERIFICATION_REJECTED` | professional | an admin decides a verification check |
+| `ACCOUNT_SUSPENDED` | the user | an admin suspends the account |
+| `CHAIN_VERIFICATION_FAILED` | admins | an on-chain escrow does not match its agreed terms (`FAILED_VERIFICATION`) |
+
+Notifications are written in the same transaction as the event, so a failed action leaves none behind.
+
+### 11.2 Admin console (ADMIN role; every list paginated with `X-Total-Count`)
+
+| Method | Path | Filters | Response |
+|---|---|---|---|
+| GET | `/admin/users` | `q` (email or name contains, ≥ 2 chars), `role`, `status` | `AdminUser[]` |
+| GET | `/admin/users/{id}` | — | `AdminUser` + `professional_id`, `verification_status`, `wallets[]`, `active_sessions`, `bookings_as_customer`, `bookings_as_professional`, `reports_filed`, `reports_against` |
+| GET | `/admin/bookings` | `status`, `customer_id`, `professional_id` | `AdminBooking[]` (with `escrow_id`, `escrow_state`) |
+| GET | `/admin/escrows` | `state`, `reconciliation`, `failed_verification` (bool) | `AdminEscrow[]` (`asset_amount` string, `verification_error`, `failure_reason`, deadlines) |
+| GET | `/admin/chain-transactions` | `escrow_id`, `status`, `kind` | `AdminChainTx[]` (hash, status, ledger, error, `explorer_url`; never XDR) |
+| GET | `/admin/service-requests` | `status`, `category_id`, `customer_id` | `AdminServiceRequest[]` |
+| GET | `/admin/reports` | `status` (`OPEN`/`ACTIONED`/`DISMISSED`), `target_type` (`MESSAGE`/`CONVERSATION`/`USER`/`REVIEW`) | `AdminReport[]` |
+| POST | `/admin/reports/{id}/resolve` | `{decision: ACTIONED \| DISMISSED, note}` | `AdminReport`; `409 REPORT_NOT_OPEN` if already resolved. Audited; content is not deleted (review moderation is `POST /admin/reviews/{id}/moderate`) |
+| GET | `/admin/audit-logs` | `action`, `entity_type`, `entity_id`, `actor_user_id`, `since`, `until` | `AdminAuditLog[]` |
+| GET | `/admin/ops/status` | — | `{checked_at, pending_tx_count, awaiting_signature_count, oldest_pending_age_seconds, failed_verification_count, conflict_event_count, unapplied_event_count, open_disputes, open_reports, rpc: {configured, healthy, latest_ledger, oldest_ledger, error}, reconciler: {enabled, last_ledger, cursor_lag_ledgers, leader_instance, leader_since, last_error, last_error_at, updated_at}}` |
+
+Admin responses never include password hashes, token hashes, secrets, escrow keys or transaction XDR.
+
+### 11.3 Limits added in Issue 8
+
+- Request bodies: 1 MiB (`/uploads`: 11 MiB, then the per-purpose limits). Larger bodies get `413 PAYLOAD_TOO_LARGE`.
+- Every authenticated `POST`/`PATCH`/`PUT`/`DELETE` counts toward a per-user limit (120 per minute by default) → `429` with `Retry-After`.
+- In production, Swagger UI and `/api/v1/openapi.json` are disabled unless `EXPOSE_API_DOCS=true`; the committed `backend/openapi.json` is always current.
 
 ## 12. Local development (backend)
 

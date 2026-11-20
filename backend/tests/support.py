@@ -246,3 +246,143 @@ async def relogin(client: httpx.AsyncClient, account: Account) -> Account:
     return Account(
         id=account.id, email=account.email, access_token=response.json()["access_token"], refresh_cookie=""
     )
+
+
+async def link_wallet(
+    client: httpx.AsyncClient, chain: Any, account: Account, keypair: Any | None = None, *, balance: int = 0
+) -> Any:
+    """Create the account on the chain double, then link it through the real SEP-53 flow."""
+    import base64
+
+    from stellar_sdk import Keypair
+
+    keypair = keypair or Keypair.random()
+    if keypair.public_key not in chain.accounts:
+        chain.create_account(keypair.public_key, balance=balance)
+    challenge = await client.post(
+        f"{API}/wallets/challenge", json={"address": keypair.public_key}, headers=account.headers
+    )
+    assert challenge.status_code == 201, challenge.text
+    message = challenge.json()["message"]
+    signature = base64.b64encode(keypair.sign_message(message)).decode()
+    linked = await client.post(
+        f"{API}/wallets",
+        json={"address": keypair.public_key, "message": message, "signature": signature},
+        headers=account.headers,
+    )
+    assert linked.status_code == 200, linked.text
+    return keypair
+
+
+# ---------------------------------------------------------------- Issue 6 helpers
+
+
+@dataclass
+class Deal:
+    customer: Account
+    professional: Account
+    professional_id: str
+    customer_wallet: Any
+    professional_wallet: Any
+    booking_id: str
+    conversation_id: str
+
+
+def sign(unsigned_xdr: str, keypair: Any) -> str:
+    from stellar_sdk import Network, TransactionEnvelope
+
+    envelope = TransactionEnvelope.from_xdr(unsigned_xdr, Network.TESTNET_NETWORK_PASSPHRASE)
+    envelope.sign(keypair)
+    return str(envelope.to_xdr())
+
+
+async def make_deal(
+    client: httpx.AsyncClient,
+    chain: Any,
+    outbox: RecordingEmailSender,
+    *,
+    balance: int = 10**12,
+    wallets: bool = True,
+    **quote: Any,
+) -> Deal:
+    """Customer + verified professional, both wallets linked, a quote accepted: PENDING_PAYMENT."""
+    customer = await register(client)
+    professional, professional_id = await register_professional(client)
+    await verify_email(client, outbox, customer)
+    await verify_email(client, outbox, professional)
+    customer_wallet = professional_wallet = None
+    if wallets:
+        customer_wallet = await link_wallet(client, chain, customer, balance=balance)
+        professional_wallet = await link_wallet(client, chain, professional)
+    conversation_id = await open_conversation(client, customer, professional_id)
+    created = await client.post(
+        f"{API}/quotes", json=quote_payload(conversation_id, **quote), headers=professional.headers
+    )
+    assert created.status_code == 201, created.text
+    accepted = await client.post(
+        f"{API}/quotes/{created.json()['id']}/accept",
+        json={"service_address": "Room 214, Moremi Hall"},
+        headers=customer.headers,
+    )
+    assert accepted.status_code == 201, accepted.text
+    return Deal(
+        customer,
+        professional,
+        professional_id,
+        customer_wallet,
+        professional_wallet,
+        accepted.json()["booking"]["id"],
+        conversation_id,
+    )
+
+
+async def booking(client: httpx.AsyncClient, deal: Deal, account: Account | None = None) -> dict[str, Any]:
+    response = await client.get(
+        f"{API}/bookings/{deal.booking_id}", headers=(account or deal.customer).headers
+    )
+    assert response.status_code == 200, response.text
+    return dict(response.json())
+
+
+async def fund(client: httpx.AsyncClient, chain: Any, reconciler: Any, deal: Deal) -> dict[str, Any]:
+    """prepare → sign → submit → ledger closes → reconciler: the booking is FUNDED."""
+    prepared = await client.post(
+        f"{API}/bookings/{deal.booking_id}/escrow", json={}, headers=deal.customer.headers
+    )
+    assert prepared.status_code == 200, prepared.text
+    escrow_id = prepared.json()["escrow"]["id"]
+    submitted = await client.post(
+        f"{API}/escrows/{escrow_id}/funding",
+        json={"signed_xdr": sign(prepared.json()["unsigned_xdr"], deal.customer_wallet)},
+        headers=deal.customer.headers,
+    )
+    assert submitted.status_code == 200, submitted.text
+    chain.close_ledger()
+    await reconciler.tick()
+    bundle = await booking(client, deal)
+    assert bundle["booking"]["status"] == "FUNDED", bundle["escrow"]
+    return bundle
+
+
+async def chain_action(
+    client: httpx.AsyncClient,
+    chain: Any,
+    reconciler: Any,
+    path: str,
+    account: Account,
+    keypair: Any,
+    body: dict[str, Any] | None = None,
+    *,
+    submit_path: str | None = None,
+) -> httpx.Response:
+    """Prepare at ``path``, sign, submit (same path unless ``submit_path``), confirm, reconcile."""
+    prepared = await client.post(f"{API}{path}", json=body or {}, headers=account.headers)
+    assert prepared.status_code == 200, prepared.text
+    signed = sign(prepared.json()["unsigned_xdr"], keypair)
+    submitted = await client.post(
+        f"{API}{submit_path or path}", json={"signed_xdr": signed}, headers=account.headers
+    )
+    assert submitted.status_code == 200, submitted.text
+    chain.close_ledger()
+    await reconciler.tick()
+    return submitted

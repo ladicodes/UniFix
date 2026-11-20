@@ -14,6 +14,8 @@ from app.modules.auth import sessions
 from app.modules.auth.context import AuthContext
 from app.modules.auth.models import RevocationReason
 from app.modules.campuses import service as campuses
+from app.modules.notifications import service as notifications
+from app.modules.notifications.models import NotificationType
 from app.modules.uploads import service as uploads
 from app.modules.uploads.models import FilePurpose
 from app.modules.users import repository
@@ -74,6 +76,17 @@ async def change_status(
     if data.status is not AccountStatus.ACTIVE:
         revoked = await sessions.revoke_all(
             session, user_id=user.id, reason=RevocationReason.ACCOUNT_STATUS, now=now
+        )
+    if data.status is AccountStatus.SUSPENDED:
+        await notifications.notify(
+            session,
+            user.id,
+            NotificationType.ACCOUNT_SUSPENDED,
+            title="Account suspended",
+            body="An administrator suspended your account. Contact support if you think this is a mistake.",
+            href=None,
+            data={"reason": data.reason} if data.reason else {},
+            now=now,
         )
     await audit.record(
         session,

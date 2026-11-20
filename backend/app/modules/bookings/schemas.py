@@ -9,9 +9,12 @@ from pydantic import Field, StringConstraints
 from app.core.schemas import APIModel, ResponseModel
 from app.modules.bookings.models import BookingStatus, TimelineActor
 from app.modules.chat.schemas import PublicUser
+from app.modules.disputes.schemas import DisputeOut
+from app.modules.payments.schemas import EscrowOut
 from app.modules.professionals.models import Currency
 from app.modules.professionals.schemas import ProfessionalOut
 from app.modules.quotes.schemas import QuoteOut
+from app.modules.reviews.schemas import ReviewOut
 
 
 class AcceptQuoteIn(APIModel):
@@ -59,11 +62,11 @@ class BookingOut(ResponseModel):
 class BookingBundle(ResponseModel):
     booking: BookingOut
     quote: QuoteOut
-    escrow: dict[str, object] | None = None
+    escrow: EscrowOut | None = None
     professional: ProfessionalOut
     customer: PublicUser
-    dispute: dict[str, object] | None = None
-    review: dict[str, object] | None = None
+    dispute: DisputeOut | None = None
+    review: ReviewOut | None = None
     allowed_actions: list[str]
 
 

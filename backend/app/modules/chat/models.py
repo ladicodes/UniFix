@@ -149,6 +149,7 @@ class Report(UUIDPrimaryKey, CreatedAt, Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, server_default=ReportStatus.OPEN.value)
     resolved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     resolved_at: Mapped[datetime | None] = mapped_column()
+    resolution_note: Mapped[str | None] = mapped_column(String(1000))
 
 
 class WebSocketTicket(UUIDPrimaryKey, CreatedAt, Base):

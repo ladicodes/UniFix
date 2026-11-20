@@ -268,6 +268,8 @@ Behaviour:
 
 ### Issue 5 — Wallets
 
+*Implemented in migration `0005` as designed; `wallet_challenges` also stores `network`.*
+
 **wallets**
 `id, user_id FK, network (testnet), address char(56), verified_at, is_primary bool, created_at, revoked_at NULL`.
 Constraints: `UNIQUE (network, address) WHERE revoked_at IS NULL`; `UNIQUE (user_id, network) WHERE is_primary AND revoked_at IS NULL`.
@@ -276,6 +278,8 @@ Constraints: `UNIQUE (network, address) WHERE revoked_at IS NULL`; `UNIQUE (user
 `id, user_id FK, address, nonce char(32) UNIQUE, message text, expires_at, used_at NULL, created_at`.
 
 ### Issue 6 — Escrow, chain transactions, events, ledger, completion, cancellation, receipts
+
+*Implemented in migration `0006`.* Additions to the design below: `escrows.funded_at_chain`, `escrows.failure_reason`; `chain_transactions.signed_envelope_xdr` (a public signed transaction, so the reconciler can resend it), `data` and `submitted_at`; `chain_sync_state.last_error(_at)`; `completion_submissions.evidence_canonical_json` with a hash `CHECK`; `receipts.payload_canonical_json` with a hash `CHECK`. `ledger_entries` and `receipts` are append-only (trigger), `chain_events` cannot be deleted (trigger), and receipt numbers come from the `receipt_number_seq` sequence. The in-flight unique index covers `PREPARED`, `SUBMITTED` and `PENDING`.
 
 **escrows**
 
@@ -341,6 +345,8 @@ The cursor is updated in the same transaction as the events it covers.
 `UNIQUE (escrow_id, kind)`.
 
 ### Issue 7 — Disputes and reviews
+
+*Implemented in migration `0007`.* Additions: `disputes.locked_at`; `evidence_closes_at` and `decision_due_at` are nullable until the lock confirms; `escalation_level` is 0–2. `dispute_evidence` is append-only (trigger) and `reviews` cannot be deleted (trigger). A `RESOLVED` booking stamps `completed_at`, which starts the 30-day review window.
 
 **disputes**
 `id, booking_id FK, escrow_id FK, opened_by FK, reason (INCOMPLETE|DAMAGED|NO_SHOW|PRICE_CHANGED|QUALITY|OTHER), details, status (OPEN|UNDER_REVIEW|AWAITING_SETTLEMENT|RESOLVED|CLOSED), outcome NULL (RELEASE|REFUND|SPLIT|CONCEDED_RELEASE|CONCEDED_REFUND), split_bps_to_professional int NULL CHECK 0–10000, resolution_note, resolved_by NULL, resolved_at, evidence_closes_at, decision_due_at, escalation_level smallint default 0, escalated_at NULL, created_at, updated_at`.

@@ -1,0 +1,22 @@
+# gitleaks configuration (CI job: .github/workflows/security.yml).
+# Extends the default rules with a Stellar secret-seed rule. Allowlisted: the SEP-53 published
+# test vector used in the unit tests, and the placeholder values in .env.example.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "stellar-secret-seed"
+description = "Stellar secret seed (S + 55 base32 characters)"
+regex = '''\bS[A-Z2-7]{55}\b'''
+keywords = ["S"]
+
+[allowlist]
+description = "Published test vectors and documented placeholders"
+regexes = [
+  '''SAKICEVQLYWGSOJS4WW7HZJWAHZVEEBS527LHK5V4MLJALYKICQCJXMW''',  # SEP-53 test vector
+  '''change-me[-a-z0-9]*''',
+]
+paths = [
+  '''backend/\.env\.example''',
+]

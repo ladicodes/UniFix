@@ -62,6 +62,7 @@ class Booking(UUIDPrimaryKey, Timestamps, Base):
         ),
         Index("ix_bookings_customer_status", "customer_id", "status"),
         Index("ix_bookings_professional_status", "professional_id", "status"),
+        Index("ix_bookings_created_at", "created_at"),
     )
 
     agreement_id: Mapped[uuid.UUID] = mapped_column(

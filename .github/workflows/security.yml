@@ -1,0 +1,55 @@
+name: security
+
+# Dependency audits and secret scanning (Issue 8). Runs on every push and pull request, and weekly
+# so that newly published advisories surface even when the code does not change.
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  python-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: "0.13.7"
+      - name: pip-audit (runtime and dev dependencies from uv.lock)
+        run: |
+          uv export --frozen --no-emit-project --format requirements-txt > "$RUNNER_TEMP/requirements.txt"
+          uvx --from pip-audit==2.10.1 pip-audit --strict --disable-pip --require-hashes \
+            -r "$RUNNER_TEMP/requirements.txt"
+
+  cargo-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend/contracts
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: cargo audit (Soroban escrow contract)
+        run: cargo audit
+
+  secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0  # scan the full history, not only the last commit
+      - name: gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.21.2 \
+            git /repo --config /repo/.gitleaks.toml --redact --verbose --exit-code 1

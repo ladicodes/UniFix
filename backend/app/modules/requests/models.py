@@ -31,6 +31,7 @@ class ServiceRequest(UUIDPrimaryKey, Timestamps, Base):
         CheckConstraint("(latitude IS NULL) = (longitude IS NULL)", name="coordinates_paired"),
         Index("ix_service_requests_feed", "status", "category_id", "campus_id", "created_at"),
         Index("ix_service_requests_customer", "customer_id", "created_at"),
+        Index("ix_service_requests_created_at", "created_at"),
     )
 
     customer_id: Mapped[uuid.UUID] = mapped_column(
