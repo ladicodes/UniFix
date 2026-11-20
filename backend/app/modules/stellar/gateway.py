@@ -46,6 +46,7 @@ from app.modules.stellar.http import HttpxAsyncClient
 logger = logging.getLogger(__name__)
 
 BASE_FEE = 100_000  # stroops; the resource fee from simulation is added on top
+CONNECT_RETRIES = 3  # transient connection failures to RPC/Horizon, retried by the httpx transport
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,7 +162,13 @@ class RpcGateway:
     ) -> None:
         self.passphrase = passphrase
         self.contract_id = contract_id
-        self._http = httpx.AsyncClient(timeout=timeout, headers={"User-Agent": "unifix-backend"})
+        # The transport retries only failed connection attempts (the request was never sent), so the
+        # retry is safe for every call, including sendTransaction.
+        self._http = httpx.AsyncClient(
+            timeout=timeout,
+            headers={"User-Agent": "unifix-backend"},
+            transport=httpx.AsyncHTTPTransport(retries=CONNECT_RETRIES),
+        )
         self._rpc = SorobanServerAsync(rpc_url, client=HttpxAsyncClient(self._http))
         self._horizon_url = horizon_url.rstrip("/")
 
